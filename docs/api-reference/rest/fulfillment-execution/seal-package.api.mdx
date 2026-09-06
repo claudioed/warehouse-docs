@@ -1,0 +1,71 @@
+---
+id: seal-package
+title: "Scan contents and seal a Package for a Pack task's order"
+description: "The Pack-path counterpart to `complete`: the station holding the active claim on a Pack task scans the order's contents and seals them into a brand-new Package resource (created by this call, not pre-existing — see the `Location` header). The task itself is left claimed; a separate `POST /tasks/{id}/complete` call finishes the Pack task once the package is sealed. Requires at least one scanned item — an empty `contents` array is a domain invariant violation (`422`), not a malformed request (`400`), since the array is present and well-formed, just semantically insufficient to seal."
+sidebar_label: "Scan contents and seal a Package for a Pack task's order"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/fulfillment-execution/fulfillment-execution-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Scan contents and seal a Package for a Pack task's order"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/tasks/{id}/seal-package"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The Pack-path counterpart to `complete`: the station holding the active claim on a Pack task scans the order's contents and seals them into a brand-new Package resource (created by this call, not pre-existing — see the `Location` header). The task itself is left claimed; a separate `POST /tasks/{id}/complete` call finishes the Pack task once the package is sealed. Requires at least one scanned item — an empty `contents` array is a domain invariant violation (`422`), not a malformed request (`400`), since the array is present and well-formed, just semantically insufficient to seal.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./seal-package.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./seal-package.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./seal-package.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

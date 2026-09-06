@@ -1,0 +1,69 @@
+---
+id: create-task
+title: "Create a task and place it in the pool"
+description: "Puts a new unit of Pick, Pack, or SLAM work into the pending pool. The task is not assigned to any station at creation time — PULL dispatch (`POST /stations/{stationId}/claim-next`) is the only way a task becomes claimed, consistent with this service's rule that work is never pushed to a named station in advance. `cpt` (Committed Processing Time) drives dispatch priority: `claimNext` always selects the earliest-CPT pending task a station is equipped for. This is not idempotent — each call creates a new task with a fresh, server-generated id, even with an identical body."
+sidebar_label: "Create a task and place it in the pool"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/fulfillment-execution/fulfillment-execution-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create a task and place it in the pool"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/tasks"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Puts a new unit of Pick, Pack, or SLAM work into the pending pool. The task is not assigned to any station at creation time — PULL dispatch (`POST /stations/{stationId}/claim-next`) is the only way a task becomes claimed, consistent with this service's rule that work is never pushed to a named station in advance. `cpt` (Committed Processing Time) drives dispatch priority: `claimNext` always selects the earliest-CPT pending task a station is equipped for. This is not idempotent — each call creates a new task with a fresh, server-generated id, even with an identical body.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./create-task.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./create-task.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

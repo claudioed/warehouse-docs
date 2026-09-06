@@ -1,0 +1,71 @@
+---
+id: record-completion
+title: "Record completion of a released work unit"
+description: "Finishes a released work unit — the RecordCompletion use case. Transitions Released → Completed and publishes `WorkUnitCompleted`, which updates backlog telemetry projections. Enforces the `WorkUnit` aggregate's at-most-once-completion invariant: completing an already completed unit, or one that was never released, returns `409`. This endpoint is also the target of the additive `TaskCompleted` Kafka consumer (Task 8) — fulfillment-execution's task completion drives the exact same use case as this HTTP call."
+sidebar_label: "Record completion of a released work unit"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/wes-work-planning/wes-work-planning-release
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Record completion of a released work unit"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/work-units/{id}/complete"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Finishes a released work unit — the RecordCompletion use case. Transitions Released → Completed and publishes `WorkUnitCompleted`, which updates backlog telemetry projections. Enforces the `WorkUnit` aggregate's at-most-once-completion invariant: completing an already completed unit, or one that was never released, returns `409`. This endpoint is also the target of the additive `TaskCompleted` Kafka consumer (Task 8) — fulfillment-execution's task completion drives the exact same use case as this HTTP call.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./record-completion.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./record-completion.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./record-completion.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

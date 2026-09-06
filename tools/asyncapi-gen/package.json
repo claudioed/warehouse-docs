@@ -1,0 +1,10 @@
+{
+  "name": "warehouse-docs-asyncapi-gen",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Isolated toolchain for generating static AsyncAPI HTML docs. Kept in its own node_modules, separate from the parent Docusaurus site's react@19, because @asyncapi/html-template's internal React renderer conflicts with react@19 when hoisted into a shared node_modules tree.",
+  "devDependencies": {
+    "@asyncapi/cli": "6.0.2",
+    "@asyncapi/html-template": "3.5.4"
+  }
+}

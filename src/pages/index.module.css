@@ -1,0 +1,71 @@
+.hero {
+  padding: 4rem 0;
+  text-align: center;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.85rem;
+  font-weight: 700;
+  opacity: 0.75;
+  margin-bottom: 0.5rem;
+}
+
+.heroTitle {
+  font-size: 3rem;
+}
+
+.heroSubtitle {
+  font-size: 1.3rem;
+  max-width: 46rem;
+  margin: 0 auto 1rem;
+  opacity: 0.9;
+}
+
+.heroLead {
+  max-width: 42rem;
+  margin: 0 auto 2rem;
+  opacity: 0.8;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.contextGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.contextCard {
+  display: block;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 0.6rem;
+  text-decoration: none !important;
+  color: inherit;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.contextCard:hover {
+  border-color: var(--ifm-color-primary);
+  transform: translateY(-2px);
+}
+
+.contextName {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+}
+
+.contextTier {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}

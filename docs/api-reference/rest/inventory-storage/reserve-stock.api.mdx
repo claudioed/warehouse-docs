@@ -1,0 +1,69 @@
+---
+id: reserve-stock
+title: "Create a revocable reservation against usable inventory"
+description: "Binds a quantity of a SKU's usable inventory (on-hand minus existing reservations, first-fit across whichever StockUnits have usable quantity) to a piece of demand identified by demandRef. The reservation is NOT permanently bound to one physical StockUnit — the specific units/quantities drawn from are recorded as Allocations, but a subsequent revoke-and-reserve cycle is free to draw from a different holding. This is what lets a failed physical pick be retried without stranding the order. The reservation expires automatically after a timeout if never confirmed or revoked. Not idempotent: retrying this call after a dropped response creates a second reservation for the same demandRef (see REST_AUDIT.md's idempotency notes)."
+sidebar_label: "Create a revocable reservation against usable inventory"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWu9uG7kRf5UBP/Rsd1eSFSeXKEUBx3FQN03i+s9dUTtoKHIk8bxLbkiu5T3DQB+iT9gnKYbclXYtOXHucPehkD/I1no5HM785sfhcG6ZKdByr4w+kmzELDq013jqjbhiCZPohFUF/ZuN2CulpQMOn0uuvfIVmAlwOH17/p2D0vFxhqD0NWpvbAVbRqczriXkSpcO8EY5r/QU4gxhRpfARFnn04nywIU1zsF8psQMr9FC0OFcK+9gxq+xmaGZfBu8AQ6FQoGkiMScZlMStVcThRLGVf3wBCc9OJthe25QDt5/OIMCbc41ap9VMDalliTWaIRiVjkleLbUA/777/+AnyG4AoWaKAEladevNVLoQFo+1zCxJgduaT5hrEQJ3MF+lhnRLHtceuDgyrHDzyVqDxavzRWmXMu0dgGISpBBHUwsImlFwmvZINVkgpZGzkwmlZ7SApWj1+cz7iFDT56acJWhXK6lUOIKxqSYt2SiufIzU3pw3nJNYsL6SGe7ajG8KZRFB7z0JueeBGYV8IlHCxy8ypFEqQno4D9h9ETZHCUYW69P9uC98eSjvDAetR8FTao4sXJAIhcSpTVFgZJ0KIx2CMIi96QAOBRGy452E2Ojc3iOS7/DlkOEk8PTs3/tn78+Ouvl8ju3VEBUoI1Ht9271Cxhnk8dG12wkxZG2ceEWfKS86+MrNjoNnxVFiUbeVtiwoTRtBj6Fy+KTEU3939yFDW3zIkZ5pz+8lWBbMTM+CcUniUtQRfMXZUsYQ26Q+zVayANCktxShgLEq/KljjnrdJTljC84XmR0aPTt+fpLrtryVu+rrTHKVqWsImxOffx0ZMhS1iutMrLnI1274f+35uQ96a2OvbgXek8oYlDYZzy6priPwjvtbV5dtdezBq9u1Md8CxDm7qSTBncH5AusIntqsFpHfIBOW0oOO6Vm1A8bmFv2gOuI6RBye2OZiw8TveG7O4uYV758PCkxYEn0fNkysWo2v61kds2ftZZaFs6yW9wHFw4HOzSr+7SW7irwS5J3xlyiTYM+1vNIatjz0+OiAbJLhrnWdUIgJZQEraCxjXw6bdJmr6kfHc8FE/kXjoYDAb3PuqfXRZW+YuDoQtxJb+OlLa5lEwg4pnW/Il0/lNZKvnnT12PP34xyW8WZo+PjHVITZjz3Jdu7fuaoveC7R+cHf1wyBJ28OH9m6OTd4evWcJODn/48Db8dfiP46OTw9dELMsZ6jF3CePLrao1CbeWEy8pj7lb58Cuc/aX2+RyB6VwXWQPvA1NkBbj7tZbwYJrxh+tBcVyCa5Md5/tfb87EOP0Ke7upXuDwTh9vvdCpChf7Mnnw6fPxLPxr/JYiyiWW3rgjzrg9v06JRciJfeY0ma5YrEzlaPzPC9WGW3OXRPPCZy8OYAnT5686AJ7OBg+SwfP0+HwbHdvNByMBoN/RtoKu/ZvoRUlAmmTFXxx33+c0k9rpVe4uLZxh4OV/JZoTr6Zs5dhtoymTmBc3APmo9HXmf3uYwc4693Y8eJDRiOz7Q0GqzvDO56Rn1HCX08/vIexkVVCvjl9ew65ck7paR/zwlfkmwfou7BmnGH+x6/T+D2KfnMA3z8ffA9bx1ECvEbPVeZCvvaXs7Nj2D8+ctuA1hoLbsYLTKB0KMMLBChK0XQ6vLlZJoL1WSEAkvChBMYErp1QBcUaJC28SQqSAqtJVVzIF2KktGoNy9G+ez8xiYsR3OM0HIWkQUeJJmhEWadQJrvG7R6ca/W5RDqGgAwnJOHvD1d6zUqXMTTzvnCjfj+Mcr3FCSx13lg+xd6cW5yZ0mHqKkfk3ZN43d7iU218OqHDD1uG3tc23zfqhuJ6VuZcpxa5DKczV+Y5t1WTiXRX0o39NvmTbRYKrGxvXyDmrk6vy4hYdGH2AK8oDYSRSMcwrpscFbYW4Kxhk6P23QRxb7B3t0DMV01y1j4bxqXn6ByfYn06UQ6MEKUN6exKXrLeGko7z7V4hEfieS3kq1BwPwNPJ8HCGlkKrNPkoFXvC8keQTXgIRzYO1xcR/A9Hq51+oUoDLyTxrNPM0/gJTpakB3GCOGdFh/vDQZLnxCvr317abfuChdM+WJd/h2sh60kBW8Eoqy5JpY6ogOpYLBS9KiJiU6xVLdYljBi0G7IdUOuG3LdkOvvRK5Ku3IyUUKh9mnkKtZOrR8ku/u81iHfFy3ytd8k42uUPByuUvKi8FTQCO1D6ZR82Co66TIfx5rThmA3BLsh2A3B/k4E+zNak7ZK9s1cC9LK6wr5NJzwyYhcA41qM+pw2GLUz48Z+hUifbquCrCvodR4U6AguiYUWc2z2tG1X+WGQzccuuHQDYf+rklqZKI0jGuR6KMIq8WjTztlgdZQLnlBDEqX4aXFe/wZarj0OQ/seZewHP3MUEG3MC5cTHE/W2HahIVLQhsLwaXNaguM+n2qEWcz4/zo+eD5YMVJdIWXgcRrzExBgGNUA3YoShtKwhcfE0Yke7K8dD78FVePtNqJCX6qDXu0KFf8gSoU5BuiYJYwWk9Ucrc36K2qTvj68d1p6hVd0Jd+ZqzyPOTgsdWBoj70HygHM8wkzGdoMQn3PuF5YWwAuJmACm/FY0KyuL5fAQkUGfcU9XWHQ2jSQAlhm7rxoMgyZEYH+zn/2ejU+SpDEDNuvBKwRZ0NJt8GcvGI5rChq0IbmBCB1eHhoSnthzaPQBKxH4TuuyDnFW3GJCOC0QDXVWzNGCsdV9jm6NogkYbwhgtP79GiMx70V7oHRx7qa24Hl/E2ASzyTPnqktEuQYN/NPYKjjOuNW0u95cfOmz4FYaiU7MCHu5dRODjFmoTcOahphBjQWKm4m4b7nFiT4hb3J6PgtjWBTXXwLM5r1zsKAkXPUEfi2lzBS9XG1YW8zadK5f6Uh9Ru8p0anEaOzwsws7Oony2swNba9qOgIcumoZvyb7ku5gyLKYJ/ptxF72QVaG750qbuY6eMzY02WR8OkUJ5zpYEeV2Ajs7r5TuN1fuUQnaRSS4zPjQPFNjSPCCC+WrlwEVoYDJq0BSRXUPKDUuG1aEgNbtCKCdndaWGOdbOnKsYoeOmSwtQV1BIeqTqM2iDWe7B5fsPMTWJWsVKMk+3cYsLur4XZJb/R8K4H7Z2AMiPElA02QkjCaQKF1/7+B/rrKM2pCgMmXTMpKEjY3amBodmpUEEHwofUwblmK+qwOe22pEwbPIowi0CRScPt1MFQlYU3ra4J0RikAUPJtzHY1cb26euyvXz/jYWNjyNVN1I6wPkzKbqCwjUknxBkVJY7dfduaXKJRE2KGF78SETiAZ0ljiMhTc+do3L4Nv24PjhR951MEWwbaw5loR9ZICqs5RJpY7b0vhS4t9hyhTyT0hUAu0GryRvIoW5TpkOnQXayhxXvT0bffgMOyXi96TTua8f3xEmTYsc/RPD6X8n7bhXv6+LGlzEU4LmucPbS9bB8YivKq56yBy13bILWiTzbluCTiI1nmAxIBPCXF+XYGps1vdLk8ym87FTefi/3nnYszBKaz6RcZV6JYIWeltnb9esE7++jFhlKLS89vbMXd4brO7O3r8uURbp6HX3KpQNR5dfLxr+tBCwnuFFUVqDLD0LB60r3lWhk6h+31fd0kzYl8ILPwX3/3YysCPP5yesYSN68bL3MhwUuJzOunzORsxljBTLFqVwrNblnE9LfmU3o0y6ed/zO26Rw==
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/inventory-storage/inventory-storage-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create a revocable reservation against usable inventory"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/reservations"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Binds a quantity of a SKU's usable inventory (on-hand minus existing reservations, first-fit across whichever StockUnits have usable quantity) to a piece of demand identified by demandRef. The reservation is NOT permanently bound to one physical StockUnit — the specific units/quantities drawn from are recorded as Allocations, but a subsequent revoke-and-reserve cycle is free to draw from a different holding. This is what lets a failed physical pick be retried without stranding the order. The reservation expires automatically after a timeout if never confirmed or revoked. Not idempotent: retrying this call after a dropped response creates a second reservation for the same demandRef (see REST_AUDIT.md's idempotency notes).
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./reserve-stock.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./reserve-stock.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

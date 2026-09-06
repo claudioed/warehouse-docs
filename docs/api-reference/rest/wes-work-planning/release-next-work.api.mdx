@@ -1,0 +1,71 @@
+---
+id: release-next-work
+title: "Release the next highest-priority work unit on a process path"
+description: "Applies the release policy to a process path's `WorkPool` — the ReleaseNextWork use case. Admits the pending work unit with the earliest (most urgent) CPT, transitioning it Pending → Released. This is continuous, priority-ordered admission (waveless), not a batch/wave release. A release-fed pool enforces its WIP limit as a hard invariant: releasing past the limit fails with `409`. Publishes `WorkReleased`, which downstream fulfillment-execution consumes to create a Task. This is a collection-level command on the path's work pool (not scoped to a single work unit id, since the caller does not choose which unit is released — the priority policy does), analogous in REST terms to a resource-scoped bulk action."
+sidebar_label: "Release the next highest-priority work unit on a process path"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/wes-work-planning/wes-work-planning-release
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Release the next highest-priority work unit on a process path"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/paths/{pathId}/release"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Applies the release policy to a process path's `WorkPool` — the ReleaseNextWork use case. Admits the pending work unit with the earliest (most urgent) CPT, transitioning it Pending → Released. This is continuous, priority-ordered admission (waveless), not a batch/wave release. A release-fed pool enforces its WIP limit as a hard invariant: releasing past the limit fails with `409`. Publishes `WorkReleased`, which downstream fulfillment-execution consumes to create a Task. This is a collection-level command on the path's work pool (not scoped to a single work unit id, since the caller does not choose which unit is released — the priority policy does), analogous in REST terms to a resource-scoped bulk action.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./release-next-work.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./release-next-work.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./release-next-work.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

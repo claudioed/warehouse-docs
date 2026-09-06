@@ -1,0 +1,71 @@
+---
+id: claim-next-task
+title: "PULL-dispatch the best-fit pending task to this station"
+description: "Implements this service's core dispatch rule: **pull, not push**. The station calls claimNext; the system — never the caller — selects which task to hand it. Among Pending tasks of `taskType` that this station's registered capabilities satisfy, the **earliest-CPT** task is selected and leased to `stationId` for a fixed duration (5 minutes by default). Assignment is **at-most-once**: a task with an active, unexpired lease cannot be claimed by anyone else, and this endpoint will simply skip it and try the next-best candidate. If the lease is not renewed or the task completed before it expires, the task automatically returns to the pool (see `POST /tasks/expire-leases`) rather than being lost. This call is not idempotent in the way a PUT would be — every successful call claims a *different* task (or the same task again only after its prior lease was released); that's intended PULL semantics, not a bug."
+sidebar_label: "PULL-dispatch the best-fit pending task to this station"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/fulfillment-execution/fulfillment-execution-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"PULL-dispatch the best-fit pending task to this station"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/stations/{stationId}/claim-next"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Implements this service's core dispatch rule: **pull, not push**. The station calls claimNext; the system — never the caller — selects which task to hand it. Among Pending tasks of `taskType` that this station's registered capabilities satisfy, the **earliest-CPT** task is selected and leased to `stationId` for a fixed duration (5 minutes by default). Assignment is **at-most-once**: a task with an active, unexpired lease cannot be claimed by anyone else, and this endpoint will simply skip it and try the next-best candidate. If the lease is not renewed or the task completed before it expires, the task automatically returns to the pool (see `POST /tasks/expire-leases`) rather than being lost. This call is not idempotent in the way a PUT would be — every successful call claims a *different* task (or the same task again only after its prior lease was released); that's intended PULL semantics, not a bug.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./claim-next-task.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./claim-next-task.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./claim-next-task.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

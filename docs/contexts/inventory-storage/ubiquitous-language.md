@@ -1,0 +1,79 @@
+---
+title: Ubiquitous Language
+sidebar_label: Ubiquitous Language
+description: The exact vocabulary of the Inventory & Storage bounded context, with definitions and where each term lives in code.
+---
+
+# Ubiquitous Language
+
+These are the terms this bounded context uses, with the definitions it uses
+them with. They are not synonyms for the same English words used in the
+WES-tier contexts — see [Words that mean something different
+elsewhere](#words-that-mean-something-different-elsewhere) below.
+
+## Glossary
+
+| Term | Definition | Code reference |
+| --- | --- | --- |
+| **StockUnit** | A quantity of a SKU at a **specific bin**. Every physical item has exactly one known bin OR is flagged `Unlocated` (lost) — the core rule of the context. An aggregate root, not a row of a "stock levels" table; total stock for a SKU is a *sum across* `StockUnit`s, and there is deliberately no single "SKU balance" aggregate to contend on. | `internal/domain/stock.StockUnit` |
+| **Bin / Location** | A **coded slot**. Under chaotic storage any SKU may occupy any free bin; the only hard constraint is that the sum of stock held in a bin must not exceed its capacity. Deliberately narrow: an id, a capacity, and an occupancy — it knows nothing about aisles, zones, travel distance, or temperature class (that structure belongs to `facility-layout`). | `internal/domain/location.Bin` |
+| **Stow** | Placing inbound stock into a bin. Invalid without BOTH an item-scan and a location-scan — this is precisely how inventory gets lost if skipped. `StowStock` is the only operation that brings a `StockUnit` into existence. | `internal/application/usecases.StowStock`, `stock.NewStockUnit` |
+| **Usable inventory** | Stock immediately available to fulfil: on-hand minus active reservations minus held/damaged/unlocated stock. Usable — not total — is what constrains release, and this context exposes it explicitly rather than making callers derive it. A `StockUnit` in state `UNLOCATED` or `REMOVED` contributes zero usable quantity regardless of its recorded quantity. | `stock.StockUnit.Usable()`, `usecases.GetUsable` |
+| **Reservation** | A **revocable** binding of a quantity to demand, with a timeout. Physical delivery can fail (pod blocked, tote lost, chute jam, short pick), so a reservation must be releasable and re-allocatable against a different holding. Records `Allocation`s so a revoke returns exactly the right quantity to exactly the right units; nothing binds a future reservation to the same physical holding. | `internal/domain/reservation.Reservation` |
+| **Allocation** | A line on a `Reservation` recording that *n* units were drawn from a specific `StockUnit`. Exists so revoke and confirm-pick are exact. An internal part of the `Reservation` aggregate, not an aggregate of its own. | `reservation.Allocation` |
+| **Cycle count** | Verifying a bin's contents against system records and reconciling discrepancies. A shortfall (counted < system) flags stock `Unlocated`; an overage is reported as a discrepancy for a separate receiving/audit process, because reconciling *upward* would mean inventing stock. | `usecases.RunCycleCount` |
+| **Unlocated** | The explicit "lost" state: the physical item exists somewhere, but the system no longer knows where. A first-class state precisely so that loss is never silent, and so lost stock stops counting toward usable immediately. | `stock.StateUnlocated` |
+| **Demand reference (`demandRef`)** | An opaque string identifying *what* a reservation is for — typically an order or work-unit reference from an upstream context. This service stores and echoes it; it never parses or looks it up. That opacity is the Anti-Corruption boundary: order semantics do not leak into the inventory model. | `reservation.Reservation.DemandRef` |
+| **ProductClassification** | SKU-level master data, independent of any `StockUnit` or `Bin`, describing how an item must be handled: a closed set of `HandlingTag`s (`Hazmat`, `Fragile`, `TemperatureSensitive`, `Oversized`, `HighValue`), a `TemperatureClass` (required only when `TemperatureSensitive` is set), and an optional `DOTHazardClass`. This service is the **source of truth** for it. | `internal/domain/product.ProductClassification` |
+
+## Value objects
+
+| Term | Rule |
+| --- | --- |
+| `SKU` | Non-empty string identifying a stock keeping unit. Empty is rejected at construction (`ErrEmptySKU`). |
+| `BinId` | Non-empty string identifying a coded slot (`ErrEmptyBinID`). |
+| `Quantity` | A **non-negative** count. Every operation that would drive it negative returns an error rather than clamping. `NewPositiveQuantity` additionally rejects zero. |
+| `HandlingTag` | A closed enum: `Hazmat`, `Fragile`, `TemperatureSensitive`, `Oversized`, `HighValue`. `ParseHandlingTag` rejects anything else (`ErrUnknownHandlingTag`). |
+| `TemperatureClass` | A closed enum: `Ambient`, `Chilled`, `Frozen`. Required and non-empty iff the classification carries `TemperatureSensitive`; empty otherwise. |
+| `DOTHazardClass` | An `int` 1-9 (top-level US DOT hazard class, not a closed enum of named constants), grounded in 49 CFR §177.848. Meaningful/settable only when `HandlingTags` contains `Hazmat`, but never *required* by it — zero (`DOTHazardClassUnspecified`) is valid even on a Hazmat classification, for backward compatibility with SKUs classified before this field existed. |
+
+## States
+
+**`StockUnit.State`**
+
+| State | Meaning |
+| --- | --- |
+| `AVAILABLE` | On-hand, stowed, no active reservation. |
+| `RESERVED` | At least part of the quantity is bound to demand. |
+| `PICKED` | Part of the quantity was physically removed; some remains at the bin. |
+| `REMOVED` | Quantity reached zero — fully picked out. |
+| `UNLOCATED` | A cycle count could not account for this quantity. |
+
+**`Reservation.Status`**
+
+| Status | Meaning |
+| --- | --- |
+| `ACTIVE` | Live and holding quantity out of usable. |
+| `CONFIRMED` | Consumed by a successful pick. |
+| `REVOKED` | Cancelled; quantity returned to usable. |
+| `EXPIRED` | Timed out before confirmation; quantity returned to usable. |
+
+`ACTIVE` is the only status from which a transition is legal. Attempting to
+revoke, confirm, or expire an already-resolved reservation returns
+`ErrAlreadyResolved` — the no-double-consume rule.
+
+## Words that mean something different elsewhere
+
+`warehouse-systems-ddd.md` calls this trap out explicitly, and it applies
+directly here — same word, different model is **allowed and expected**:
+
+| Word | Here (WMS tier) | Elsewhere |
+| --- | --- | --- |
+| **Task** | *not used* — this context has no task model at all | `fulfillment-execution`: an execution-level unit bound to a worker at a moment, largely disposable once complete |
+| **Reservation / Allocation** | a revocable claim on usable quantity, owned here | WES tier only *observes* the effect via events; it never holds one |
+| **Location** | a coded bin with a capacity | `facility-layout`: a `LocationSlot` in a Site→Area→Zone→Aisle→Bay→Level→Position hierarchy |
+| **Pick** | `ConfirmPick` — the *accounting* consequence of a pick | `fulfillment-execution`: the physical task lifecycle, claim/lease/complete |
+| **TemperatureClass** | a value on this service's own `ProductClassification`, required only for `TemperatureSensitive` SKUs | `facility-layout`: a value on `Zone.TemperatureClass` describing what a physical zone can hold — same name and meaning, deliberately duplicated rather than shared |
+
+Do not share a DTO or type across those boundaries. Translate at the
+Anti-Corruption Layer instead.

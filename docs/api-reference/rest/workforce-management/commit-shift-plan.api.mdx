@@ -1,0 +1,68 @@
+---
+id: commit-shift-plan
+title: "Commit a shift's headcount split across paths"
+description: "Commits a human-decided ShiftPlan: one or more PathPlan lines (path, plannedHeads, plannedRate, plannedHours), raising ShiftPlanCommitted. Validates, per line, that plannedHeads does not exceed the caller-supplied installedStations for that path (this context enforces the invariant independently — it has no dependency on Work Planning, which owns installed-station counts — the request carries the number it needs), that plannedHeads does not exceed the LIVE installed capacity fulfillment-execution reports for that path's capability (a SEPARATE, independent check — see ADR-0014; fetched fresh on every commit, and this service fails the entire commit loud, without any fallback, if fulfillment-execution cannot be reached), and that plannedHours does not exceed plannedHeads * the configured max hours per shift. Naturally idempotent by the client-supplied (buildingId, shiftId) key: the underlying repository upserts on that key."
+sidebar_label: "Commit a shift's headcount split across paths"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/workforce-management/workforce-management-api
+custom_edit_url: null
+hide_send_button: true
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Commit a shift's headcount split across paths"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/shift-plans"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Commits a human-decided ShiftPlan: one or more PathPlan lines (path, plannedHeads, plannedRate, plannedHours), raising ShiftPlanCommitted. Validates, per line, that plannedHeads does not exceed the caller-supplied installedStations for that path (this context enforces the invariant independently — it has no dependency on Work Planning, which owns installed-station counts — the request carries the number it needs), that plannedHeads does not exceed the LIVE installed capacity fulfillment-execution reports for that path's capability (a SEPARATE, independent check — see ADR-0014; fetched fresh on every commit, and this service fails the entire commit loud, without any fallback, if fulfillment-execution cannot be reached), and that plannedHours does not exceed plannedHeads * the configured max hours per shift. Naturally idempotent by the client-supplied (buildingId, shiftId) key: the underlying repository upserts on that key.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./commit-shift-plan.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./commit-shift-plan.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
