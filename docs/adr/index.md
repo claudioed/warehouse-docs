@@ -47,3 +47,22 @@ than one context's own docs:
   `wes-work-planning`, `workforce-management`) documents the same static
   bearer key + read/read-write scope posture; see each context's own
   `docs/docs/mcp/governance-charter.md`.
+- **REST identity: static bearer keys + read/read-write scopes** —
+  decided fleet-wide on 2026-09-07 and recorded canonically in
+  [`warehouse-ops-agent` ADR-0005](https://github.com/claudioed/warehouse-ops-agent/tree/develop/docs/docs/adr).
+  Every REST surface adopts the exact posture the MCP adapters already
+  carry (same `Authenticator` seam, same Kubernetes-Secret-sourced keys,
+  `GET`=read / mutations=read-write, `/healthz` open), rolled out with an
+  `AUTH_MODE=log` observation window before `enforce`. No IdP: the seam is
+  deliberately OAuth 2.1-ready, and this is the one place a real identity
+  provider would slot in later. Each context records a one-paragraph
+  adoption ADR pointing back here.
+- **Transactional outbox** — every context that publishes integration or
+  analytics events commits the event in the same database transaction as
+  the aggregate change and relays it to Kafka afterwards, so a store and
+  its topic can never diverge. Reference implementation and full decision
+  record:
+  [`process-path-management` ADR-0003](https://github.com/claudioed/process-path-management/tree/develop/docs/docs/adr);
+  `order-management`, `inventory-storage` and `facility-layout` carried a
+  Postgres outbox from their first release, and the remaining publishers
+  adopted it in September 2026 with their own ADRs.
