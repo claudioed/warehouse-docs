@@ -43,12 +43,6 @@ servers:
   - url: http://localhost:8080
     description: Local development (in-memory adapters unless DATABASE_URL is set)
 
-# This service has no authentication/authorization layer today (see CLAUDE.md
-# / router.go — no auth middleware is wired in). Declared explicitly as no
-# security requirements, rather than left undefined, so tooling doesn't
-# flag it as an oversight.
-security: []
-
 tags:
   - name: Tasks
     description: >
@@ -62,7 +56,7 @@ tags:
       occupied by at most one worker/robot at a time. Covers registration
       (which also serves as idempotent re-certification), check-in/
       check-out of the occupant (see
-      [ADR-0014](https://github.com/claudioed/fulfillment-execution/blob/develop/docs/docs/adr/0014-labor-performance-integration-hooks.md)), and
+      [ADR-0014](/docs/adr/0014-labor-performance-integration-hooks)), and
       is the entry point for PULL dispatch (`claim-next` is a Station
       action).
   - name: Packages
@@ -336,7 +330,7 @@ paths:
         `CheckIn` invariant enforced through the application layer: one
         occupant at a time. This is operational state, not a
         labor-performance domain event in its own right (see
-        [ADR-0014](https://github.com/claudioed/fulfillment-execution/blob/develop/docs/docs/adr/0014-labor-performance-integration-hooks.md)):
+        [ADR-0014](/docs/adr/0014-labor-performance-integration-hooks)):
         no domain event is published by this endpoint. The checked-in
         occupant is instead surfaced, best-effort, as `associateId` on the
         `TaskCompleted` Kafka event when a task claimed by this station is
@@ -406,7 +400,7 @@ paths:
         Clears a station's occupant — the Station aggregate's `CheckOut`
         invariant enforced through the application layer. Takes no request
         body. Like check-in, this publishes no domain event (see
-        [ADR-0014](https://github.com/claudioed/fulfillment-execution/blob/develop/docs/docs/adr/0014-labor-performance-integration-hooks.md)).
+        [ADR-0014](/docs/adr/0014-labor-performance-integration-hooks)).
       parameters:
         - name: stationId
           in: path
@@ -651,7 +645,7 @@ paths:
             class-level 49 CFR §177.848-derived segregation matrix — with an
             item already scanned into this same package
             (`package-segregation-violation`, see
-            [ADR-0010](https://github.com/claudioed/fulfillment-execution/blob/develop/docs/docs/adr/0010-package-segregation-and-sort-lane.md)).
+            [ADR-0010](/docs/adr/0010-package-segregation-and-sort-lane)).
             The segregation check only runs when the deployment has
             `PRODUCT_CLASSIFICATION_MODE=http` configured; the default
             permissive mode never rejects on this basis.
@@ -935,7 +929,7 @@ components:
       type: string
       description: >
         Package's derived WES-tier sortation routing decision (see
-        [ADR-0010](https://github.com/claudioed/fulfillment-execution/blob/develop/docs/docs/adr/0010-package-segregation-and-sort-lane.md)):
+        [ADR-0010](/docs/adr/0010-package-segregation-and-sort-lane)):
         `HAZMAT_LANE` if any scanned item carried a DOT hazard class from
         the live per-scanned-item classification lookup, else
         `FRAGILE_NO_TILT` if `fragileHandling` is true, else `STANDARD`.
@@ -1231,7 +1225,7 @@ components:
             service — carried through to the `associateId` field of a
             later `TaskCompleted` Kafka event for any task this station
             completes while the occupant remains checked in (see
-            [ADR-0014](https://github.com/claudioed/fulfillment-execution/blob/develop/docs/docs/adr/0014-labor-performance-integration-hooks.md)).
+            [ADR-0014](/docs/adr/0014-labor-performance-integration-hooks)).
           example: worker-42
       example:
         occupantId: worker-42
