@@ -44,9 +44,17 @@ than one context's own docs:
   `facility-layout`) records its own adoption ADR referencing it back.
 - **MCP inbound adapter governance** — each context exposing an MCP server
   (`facility-layout`, `fulfillment-execution`, `inventory-storage`,
-  `wes-work-planning`, `workforce-management`) documents the same static
-  bearer key + read/read-write scope posture; see each context's own
-  `docs/docs/mcp/governance-charter.md`.
+  `wes-work-planning`, `workforce-management`, and, since the fleet's
+  bounded-context wiring plan, `order-management`, `labor-performance`,
+  `process-path-management`) documents the same static bearer key +
+  read/read-write scope posture; most record it in their own
+  `docs/docs/mcp/governance-charter.md` (`process-path-management`
+  instead documents its MCP adapter in its own ADR 0006). That is 8 of
+  the fleet's 9 backend-context repos — `warehouse-ops-agent` is the
+  ninth, and is a Customer of these eight's MCP surfaces rather than an
+  Open Host Service with one of its own to govern the same way (it runs
+  its own separate inbound MCP server for agentic/LLM callers of its own
+  read models — see its [API surface](/api-reference/warehouse-ops-agent)).
 - **REST identity: static bearer keys + read/read-write scopes** —
   decided fleet-wide on 2026-09-07 and recorded canonically in
   [`warehouse-ops-agent` ADR-0005](https://github.com/claudioed/warehouse-ops-agent/tree/develop/docs/docs/adr).
@@ -63,6 +71,16 @@ than one context's own docs:
   its topic can never diverge. Reference implementation and full decision
   record:
   [`process-path-management` ADR-0003](https://github.com/claudioed/process-path-management/tree/develop/docs/docs/adr);
-  `order-management`, `inventory-storage` and `facility-layout` carried a
-  Postgres outbox from their first release, and the remaining publishers
-  adopted it in September 2026 with their own ADRs.
+  `labor-performance` (ADR 0010), `workforce-management` (ADR 0016),
+  `wes-work-planning` (ADR 0014), and `fulfillment-execution` (ADR 0020)
+  each adopted the identical pattern with their own ADR. `order-management`
+  and `inventory-storage` do **not** have a working outbox — each
+  explicitly documents the gap as an accepted, scoped-down tradeoff in its
+  own ADR (order-management ADR-0005, inventory-storage ADR-0004): a
+  publish failure after the repository commit still fails the whole
+  request today, rather than diverging silently. `facility-layout` has a
+  Postgres table shaped like an outbox but nothing drains it — its own
+  ADR-0009 publishes directly instead and documents that the table is
+  unused for live delivery. See the platform
+  [Context Map](/strategic-design/context-map)'s outbox section for the
+  full, current per-context state.

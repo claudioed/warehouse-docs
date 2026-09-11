@@ -107,19 +107,43 @@ sequenceDiagram
 pure Customer/Supplier Conformist, consistent with its Context Map's "zero
 REST dependency on any other service."
 
-## Flow 4 — The two planned-but-unwired flows
+## Flow 3a — Labor performance feeds back into workforce planning
 
-Documented here because they are real, decided strategic relationships that
-shape the platform's API surface today, even though no consumer exists yet:
+`labor-performance`'s scoring (Flow 3 above) is no longer a dead end. Since
+labor-performance ADR 0013 / workforce-management ADR 0019, the same
+`TaskPerformanceRecorded` fact also reaches a second consumer over a
+separate integration topic:
+
+```mermaid
+sequenceDiagram
+    participant LP as labor-performance
+    participant WFM as workforce-management
+
+    Note over LP: Flow 3's TaskPerformanceRecorded also<br/>publishes to warehouse.labor-performance.events<br/>(separate from the analytics topic)
+    LP->>WFM: event TaskPerformanceRecorded (Kafka: warehouse.labor-performance.events)
+    WFM->>WFM: local running-mean cache updated (laborperformancecache)
+    Note over WFM: ProposePathPlan's measured-rate enrichment<br/>reads this cache instead of calling labor-performance<br/>synchronously (LABOR_PERFORMANCE_MODE=kafka-cache)
+```
+
+This is the fleet's third instance of the "event-fed local cache replacing
+a synchronous call" pattern, after `process-path-management` → the three
+catalogue consumers and `facility-layout` → `inventory-storage` — see
+[Context Map](./context-map).
+
+## Flow 4 — Process-path catalogue propagation (now live)
 
 ```mermaid
 sequenceDiagram
     participant PPM as process-path-management
     participant WES as fulfillment-execution / wes-work-planning / workforce-management
 
-    Note over PPM,WES: NOT YET WIRED — all three still boot-load<br/>the predecessor static YAML file
+    Note over PPM,WES: LIVE — all three replay ProcessPathCreated/Updated/<br/>Deactivated into a local catalogue cache
     PPM->>WES: event ProcessPathCreated / ProcessPathUpdated / ProcessPathDeactivated<br/>(warehouse.process-path-management.events)
 ```
+
+Documented here alongside the still-unwired `facility-layout` flow below
+because both are examples of the same OHS + Published Language pattern at
+different stages of adoption.
 
 ```mermaid
 sequenceDiagram

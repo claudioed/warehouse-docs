@@ -64,21 +64,24 @@ Service**, not "analysis context" in the `warehouse-ops-agent` sense.
 | `fulfillment-execution` | Customer/Supplier — this context is a **Conformist** downstream | Kafka, topic `warehouse.fulfillment.events`, event `TaskCompleted` | `fulfillment-execution` is the Open Host Service; this context subscribes to its Published Language and never gets write access to `Task` or `Station`. Own consumer group id `labor-performance`. Only `event_type == "TaskCompleted"` is acted on; every other event type on the shared, fan-out topic is silently skipped. |
 
 There is **no other inbound relationship**. `workforce-management` has
-zero relationship with this context, deliberately — labor allocation
-("who is on shift, at what rate") and labor performance scoring share no
-concepts.
+zero *inbound* relationship with this context — it never sends this
+service anything. (It is, since ADR 0013, an *outbound* Kafka Customer of
+this service — see Outbound Communication below — but that is a separate
+direction from this table, which is inbound-only.)
 
 ## Outbound Communication
 
 | To | Relationship | Integration | Notes |
 | --- | --- | --- | --- |
+| `workforce-management` | Open-Host Service + Published Language — this context is the **Supplier**, `workforce-management` a Conformist downstream | Kafka, topic `warehouse.labor-performance.events`, event `TaskPerformanceRecorded` | **Live** (ADR 0013). This context's first Open-Host-Service Published Language for another bounded context — before this, `labor-performance` was the fleet's only pure event sink. `workforce-management` consumes it into a local, event-fed running-mean cache, replacing a synchronous HTTP call (`LABOR_PERFORMANCE_MODE=kafka-cache`, that repo's ADR 0019). Publish-and-forget: no reply, no confirmation loop. |
 | Future console (`labor-mfe`) | Open Host Service (planned) | REST — `POST /standards`, `GET /standards/{taskType}`, `GET /associates/{associateId}/scorecard`, `GET /task-types/{taskType}/performance` | **No consumer wired yet.** CORS is enabled proactively (matching the fleet's convention that CORS ships alongside a service's first console-facing REST surface), but the `labor-mfe` micro-frontend remote itself is explicitly deferred. |
 | Analytics consumers (WES Dashboard) | Open Host Service, separate analytics surface | REST — `GET /reports/performance`, `GET /reports/performance/freshness` via `cmd/labor-reports`, fed by a dedicated `warehouse.labor-performance.analytics` Kafka topic | Fleet-parity analytical data product (ADR-0007): a separate writer/reader/database triad, never touching the OLTP path. |
 
 This context has **zero REST dependency in either direction** with any
 other bounded context. Everything the OLTP side needs
 (`AssociateId`, `TaskType`, `DurationSeconds`) already travels on the one
-Kafka event it consumes.
+Kafka event it consumes, and everything `workforce-management` needs from
+this context now travels on the one Kafka event it publishes.
 
 ## Ubiquitous Language
 

@@ -53,6 +53,7 @@ flowchart TB
     WP ==>|"warehouse.work-planning.events<br/>WorkReleased<br/>OHS + Published Language"| FE
     FE ==>|"warehouse.fulfillment.events<br/>TaskCompleted<br/>Partnership (closed loop back to WP)"| WP
     FE ==>|"warehouse.fulfillment.events<br/>TaskCompleted (same fan-out topic)<br/>Customer/Supplier, Conformist"| LP
+    LP ==>|"warehouse.labor-performance.events<br/>TaskPerformanceRecorded<br/>OHS + Published Language"| WFM
     FL ==>|"warehouse.facility.events<br/>ZoneRegistered · LocationSlotRegistered/Decommissioned<br/>OHS + Published Language"| INV
     PPM ==>|"warehouse.process-path-management.events<br/>ProcessPathCreated/Updated/Deactivated<br/>OHS + Published Language"| FE
     PPM ==>|"warehouse.process-path-management.events<br/>OHS + Published Language"| WP
@@ -61,6 +62,14 @@ flowchart TB
     OA -.->|"GET /orders/{id}<br/>read-only fan-out, Conformist"| OM
     OA -.->|"cross-service Order Lifecycle fan-out<br/>read-only, Conformist"| WP
     OA -.->|"cross-service Order Lifecycle fan-out<br/>read-only, Conformist"| FE
+    OA -.-|"MCP: check_availability, get_bin_occupancy<br/>read-only, Conformist"| INV
+    OA -.-|"MCP: get_backlog_telemetry, get_rebalance_recommendation<br/>read-only, Conformist"| WP
+    OA -.-|"MCP: get_queue_status, find_claimable_work, diagnose_stuck_tasks<br/>read-only, Conformist"| FE
+    OA -.-|"MCP: get_staffing_gap, propose_path_heads<br/>read-only, Conformist"| WFM
+    OA -.-|"MCP: list_sites, get_site_layout, get_zone_grid<br/>read-only, Conformist"| FL
+    OA -.-|"MCP: get_order — wired, unconsumed"| OM
+    OA -.-|"MCP: get_associate_scorecard/get_task_type_performance/get_labor_standard — wired, unconsumed"| LP
+    OA -.-|"MCP: get_process_path/list_process_paths/get_catalogue_growth_report — wired, unconsumed"| PPM
 
     classDef core fill:#1e3a8a,stroke:#1e293b,color:#fff;
     classDef supp fill:#6d28d9,stroke:#4c1d95,color:#fff;
@@ -74,17 +83,35 @@ flowchart TB
 
 **Bold edges are live** — a real publisher and a real consumer, verified
 against each context's own `CLAUDE.md` and adapter code, or a real HTTP
-client calling a real endpoint. **Dashed edges are live too, but read-only
-or advisory** — `warehouse-ops-agent`'s cross-service fan-out reads, which
-never write into another context.
+client calling a real endpoint. **Dashed edges labeled `GET`/`cross-service
+fan-out`** are `warehouse-ops-agent`'s read-only REST fan-out — live reads
+that never write into another context. **Dashed edges labeled `MCP:`** are
+a *different contract type*: `warehouse-ops-agent`'s outbound MCP
+tool-call surface, reaching all eight backend bounded contexts (the ninth,
+`warehouse-ops-agent` itself, is the Customer, not an Open Host Service).
+Five of those eight (`inventory-storage`, `wes-work-planning`,
+`fulfillment-execution`, `workforce-management`, `facility-layout`) are
+**live and actually called** by the E1/E2/E3 use cases (DailyBrief,
+FlowBalanceAdvisory). The three newest (`order-management`,
+`labor-performance`, `process-path-management`) are **wired but
+unconsumed** — real MCP clients exist in the composition root
+(`internal/adapters/outbound/mcpclient/`), with real port interfaces and
+full unit test coverage, but no existing use case calls them yet
+(`warehouse-ops-agent` ADR 0007). This is a third, distinct state from
+either "live and consumed" or "not yet wired" — the client exists and can
+reach the upstream MCP server today, but nothing in this repo invokes it.
 
-Every integration on this map is now wired. The relationships that were
-previously drawn as "strategically decided, no wire yet" —
-`process-path-management` → the three catalogue consumers, and
-`facility-layout` → `inventory-storage` — are live and verified in the
-running cluster; see the table below and the **Deliberate
-non-integrations** section for the edges that are still deliberately
-absent.
+Every backend integration on this map that has a consumer is now wired.
+The relationships that were previously drawn as "strategically decided,
+no wire yet" — `process-path-management` → the three catalogue consumers,
+`facility-layout` → `inventory-storage`, and now `labor-performance` →
+`workforce-management` — are live and verified in the running cluster.
+The one exception, stated precisely: `warehouse-ops-agent`'s three newest
+MCP clients (`order-management`, `labor-performance`,
+`process-path-management`) are wired at the adapter level but not yet
+consumed by any use case — see the **MCP surface** section below and the
+**Deliberate non-integrations** section for edges that are still
+deliberately absent altogether.
 
 ## Relationship patterns, edge by edge
 
@@ -97,10 +124,41 @@ absent.
 | `wes-work-planning` → `fulfillment-execution` | Open-Host Service + Published Language | wes-work-planning is upstream OHS (`WorkReleased`) |
 | `fulfillment-execution` → `wes-work-planning` | Partnership | Closes the loop (`TaskCompleted` back to the conductor) — the two evolve together as one control loop, not a one-way pipeline |
 | `fulfillment-execution` → `labor-performance` | Customer/Supplier, Conformist | labor-performance is a pure Conformist downstream reader of the same `TaskCompleted` event, zero write access |
+| `labor-performance` → `workforce-management` | Open-Host Service + Published Language, Conformist downstream | **Live.** workforce-management maintains a local, in-memory running-mean cache of `TaskPerformanceRecorded` fed by labor-performance's new `warehouse.labor-performance.events` topic, replacing `ProposePathPlan`'s per-request synchronous `GET /task-types/{taskType}/performance` call. Same event-fed-cache-replacing-sync-call pattern as the two edges above, mirroring workforce-management's own existing `kafkacatalog` consumer of process-path-management's events byte-for-byte (per-process-unique consumer group, `FirstOffset` replay, `Ready()`/`WaitReady()` gate). The old sync HTTP client is retained as the configured rollback (`LABOR_PERFORMANCE_MODE=http`; a third mode, `permissive`, also still exists as a no-op fail-open default). Selected via `LABOR_PERFORMANCE_MODE=kafka-cache`. See labor-performance ADR 0013 / workforce-management ADR 0019 |
 | `facility-layout` → `inventory-storage` | Open-Host Service + Published Language, Conformist downstream | **Live.** inventory-storage maintains a local read model of location classifications fed by `warehouse.facility.events`, replacing the per-stow synchronous call. Verified with facility-layout scaled to **zero replicas**: stows are still classified correctly from the cache. The old sync `GET /locations/{code}/classification` is retained as the configured rollback (`LOCATION_LOOKUP_MODE=http`), not deleted. See inventory-storage ADR 0013 / facility-layout ADR 0013 |
 | `facility-layout` → WES tier | Open-Host Service (no consumer yet) | facility-layout is the OHS for physical-location facts. Its only wired consumer today is `inventory-storage` (above); no WES-tier context consumes it, because none has a use case for it yet — a deliberate non-integration, not an oversight |
 | `process-path-management` → WES tier | Open-Host Service + Published Language, Conformist downstreams | **Live.** `fulfillment-execution`, `wes-work-planning` and `workforce-management` each replay `ProcessPathCreated/Updated/Deactivated` into a local catalogue cache and gate readiness on that replay. The predecessor static YAML (`warehouse-infra/config/process-paths/sortable-fc.yaml`) is frozen and SUPERSEDED, kept only as the rollback target. Verified live: a newly-defined path reached all three running consumers with **no restart**, and a deactivation propagated the same way. See process-path-management ADR 0002 |
 | `warehouse-ops-agent` → `order-management`, `inventory-storage`, `wes-work-planning`, `fulfillment-execution` | Conformist (read-only fan-out) | The console BFF stitches one order's cross-service lifecycle; each stage degrades independently, never a write |
+
+## MCP surface: warehouse-ops-agent's outbound tool-call edges
+
+`warehouse-ops-agent` is a Customer of all **eight** other backend bounded
+contexts' published MCP Open Host Services — it is the ninth backend
+context in the fleet's MCP count, and the only Customer, not an Open Host
+Service, on this surface. This is a separate contract type from the REST
+fan-out table above (MCP tool calls, not `GET` requests) and from the
+Kafka edges on the diagram (synchronous request/response, not
+publish/consume), so it gets its own table rather than blurring into
+either:
+
+| Upstream | MCP tools | Consumed by a use case today? |
+| --- | --- | --- |
+| `inventory-storage` | `check_availability`, `get_bin_occupancy` | **Yes** — E1/E2 correlation |
+| `wes-work-planning` | `get_backlog_telemetry`, `get_rebalance_recommendation` | **Yes** — E1/E3 correlation |
+| `fulfillment-execution` | `get_queue_status`, `find_claimable_work`, `diagnose_stuck_tasks` | **Yes** — E1/E3 correlation |
+| `workforce-management` | `get_staffing_gap`, `propose_path_heads` | **Yes** — E1/E3 correlation |
+| `facility-layout` | `list_sites`, `get_site_layout`, `get_zone_grid` | **Yes** — E3 daily-brief grouping |
+| `order-management` | `get_order` | **No.** Client wired in the composition root (`internal/adapters/outbound/mcpclient/order_management.go`), full unit test coverage, but not called by `DailyBrief`, `FlowBalanceAdvisory`, or any other use case |
+| `labor-performance` | `get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard` | **No.** Same wired-but-unconsumed state as above |
+| `process-path-management` | `get_process_path`, `list_process_paths`, `get_catalogue_growth_report` | **No.** Same wired-but-unconsumed state as above |
+
+The last three rows landed together in `warehouse-ops-agent` PR #44 (ADR
+0007), mirroring the precedent already set by `InventoryStorageClient`:
+wire the adapter and port as soon as the upstream MCP server exists,
+independent of whether a use case needs it yet. A future use case can
+start calling any of them by consuming the already-wired `om`/`lp`/`ppm`
+variables in `cmd/agent/main.go` — no new adapter, port, or config
+plumbing required at that point.
 
 ## What is deliberately absent
 
@@ -138,23 +196,41 @@ at least once:
   propagation is exclusively one-way over Kafka, never a synchronous
   callback.
 
-## Known systemic gap: no outbox
+## Transactional outbox: fleet-wide rollout, one repo still open
 
-Every write use case in this platform does `Repo.Save` **then**
-`Publisher.Publish`, with no outbox and no compensation. A publish that
-fails after the repository commit leaves that context's own state correct
-and the event permanently unpublished — silently diverging from what every
-downstream consumer will ever see.
+This page previously stated "no outbox" as a uniform fleet-wide gap. That
+is now out of date — the outbox pattern (commit the event's wire form to
+an outbox table in the SAME transaction as the aggregate change, with an
+in-process relay draining it to Kafka) has rolled out to **seven of the
+eight** backend contexts with a Kafka publisher, each with its own ADR:
 
-This is not hypothetical: `process-path-management`'s Postgres store and
-its Kafka topic were once found diverged **in both directions at once**,
-with its REST listing looking perfectly healthy. The operational
-consequence is that a context's own read API is *not* evidence of what its
-consumers see; the topic has to be checked separately.
+| Context | ADR |
+| --- | --- |
+| `process-path-management` | [ADR 0003](https://github.com/claudioed/process-path-management/blob/develop/docs/docs/adr/0003-transactional-outbox.md) — the fleet's reference implementation |
+| `labor-performance` | [ADR 0010](https://github.com/claudioed/labor-performance/blob/develop/docs/docs/adr/0010-transactional-outbox.md) |
+| `workforce-management` | [ADR 0016](https://github.com/claudioed/workforce-management/blob/develop/docs/docs/adr/0016-transactional-outbox.md) |
+| `wes-work-planning` | [ADR 0014](https://github.com/claudioed/wes-work-planning/blob/develop/docs/docs/adr/0014-transactional-outbox.md) |
+| `fulfillment-execution` | [ADR 0020](https://github.com/claudioed/fulfillment-execution/blob/develop/docs/docs/adr/0020-transactional-outbox.md) |
+| `order-management` | Documented as an accepted, scoped-down gap in [ADR 0005](https://github.com/claudioed/order-management/blob/develop/docs/docs/adr/0005-choreographed-release-via-kafka.md) — no outbox table; a publish failure after the repository commit still fails the whole request today |
+| `inventory-storage` | Documented as an accepted, scoped-down gap in [ADR 0004](https://github.com/claudioed/inventory-storage/blob/develop/docs/docs/adr/0004-kafka-integration-events.md) — same shape as order-management, no outbox table |
 
-Closing it properly needs an outbox pattern or a transactional
-save-and-publish, applied fleet-wide. It predates the integrations above,
-which knowingly inherit it, and is tracked as its own scoped work.
+`facility-layout` is the one context still genuinely open: it has a
+Postgres `EventPublisher` implementation that appends to an `events`
+table (a *table*, not a wired outbox — nothing drains it to Kafka) and,
+per its own ADR 0009, publishes live via a direct `outbound/kafka`
+adapter instead, bypassing that unused table entirely. Its own docs state
+the no-outbox `Save`-then-`Publish` gap applies to it plainly (see its
+Bounded Context Canvas Open Questions).
+
+The operational consequence for the five outbox contexts is real and
+already proven: `process-path-management`'s Postgres store and its Kafka
+topic were once found diverged in both directions at once, with its REST
+listing looking perfectly healthy — exactly the failure mode the pattern
+now closes for those five. For the two contexts that only documented the
+gap (`order-management`, `inventory-storage`) and the one still using a
+direct publish with an unused outbox table (`facility-layout`), the same
+class of divergence remains possible today; each has explicitly recorded
+it as a known, accepted risk rather than an oversight.
 
 ## Per-context context maps
 

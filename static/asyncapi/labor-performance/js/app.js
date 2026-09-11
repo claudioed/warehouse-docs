@@ -3,8 +3,8 @@
   "asyncapi": "2.6.0",
   "info": {
     "title": "Labor Performance — Event Contracts",
-    "version": "1.1.0",
-    "description": "Event contracts for the **Labor Performance** bounded context, in both\ndirections:\n\n- **Inbound (`warehouse.fulfillment.events`)** — the integration\n  contract this service consumes. Documented below in full; this is what\n  the original v1 of this file covered.\n- **Outbound (`warehouse.labor-performance.analytics`)** — the\n  ANALYTICS stream this service publishes its own domain events to,\n  feeding its own analytical data product's projector (ADR 0007). It is\n  consumed today only by this repo's own `cmd/labor-projector`; no other\n  service subscribes. Publishing is opt-in via `EVENT_PUBLISHER=kafka`,\n  with the log publisher as the default.\n\nThe two are deliberately separate topics so the integration contract and\nthe analytical stream evolve independently.\n\n## Inbound: a pure consumer of fulfillment-execution\n\nUnlike every other `apis/asyncapi.yaml` in this fleet (which document\nonly what a service PUBLISHES), this section describes what this\nservice SUBSCRIBES TO: it is a **pure Kafka consumer** of\n`fulfillment-execution`'s already-published `TaskCompleted` integration\nevent. This service has no REST or Go-import dependency on\nfulfillment-execution — everything it needs (`associate_id`, `task_id`,\n`duration_seconds`) already travels on the Kafka event (see the\nbounded-context-boundary decision in ADR\n0003-kafka-choreography-consumer-of-fulfillment-execution.md).\n\n## Message format\n\nEvery message on `warehouse.fulfillment.events` uses the fixed,\nCloudEvents-*like* (but NOT strict CloudEvents-spec) envelope shared by\nevery warehouse-systems publisher in this fleet:\n\n```json\n{\n  \"event_id\": \"uuid-v4\",\n  \"event_type\": \"TaskCompleted\",\n  \"occurred_at\": \"2026-08-29T22:00:00Z\",\n  \"source\": \"fulfillment-execution\",\n  \"data\": { ... }\n}\n```\n\n`event_id` is the de-duplication key this service uses (see the\n`ProcessedEvents` idempotency gate) — NOT `task_id`, since a task id\ncould in principle be reused after a very long time.\n\n## Shared, fan-out topic\n\n`warehouse.fulfillment.events` is the SAME topic `wes-work-planning`\nalready consumes from, under its own consumer group. This service uses\nits own consumer group id (`labor-performance` by default,\n`KAFKA_CONSUMER_GROUP` env), so both consumers see every message\nindependently. Only `event_type == \"TaskCompleted\"` is acted on — every\nother event type on this shared topic (there are none from\nfulfillment-execution today, but the topic is shared/fan-out by\nconvention) is silently skipped, not an error.\n\n## Known wire-contract gap: no `task_type` field yet\n\nAs verified against fulfillment-execution's actual\n`TaskCompletedData` struct this session (`internal/adapters/outbound/kafka/publisher.go`\non its `feature/labor-performance-hooks` branch), the payload below is\nthe REAL, current shape — it does **not** carry a `task_type` field.\nThis service resolves TaskType as `\"\"` (unclassified) for every\nconsumed event as a result; see `shared.ParseTaskTypeLenient`'s doc\ncomment in the code and the README's \"Known gaps\" section. A future\nfulfillment-execution enrichment adding `task_type` to this payload\nwould let this service resolve it directly, with no other change\nrequired on this side.\n\n## Graceful degradation on an older payload\n\n`associate_id` and `duration_seconds` are the two fields added by\nfulfillment-execution's `feature/labor-performance-hooks` change. Both\nare optional on the wire (`omitempty` on the publisher's own struct):\nan older payload that predates that enrichment simply omits them, and\nthis service's JSON unmarshaling already degrades those absent fields\nto their Go zero values (`\"\"` / `0`) — exactly the \"no checked-in\noccupant\" / \"unmeasurable duration\" business facts this service's own\naggregate invariants already model, not an error.\n",
+    "version": "1.2.0",
+    "description": "Event contracts for the **Labor Performance** bounded context, in\nthree directions:\n\n- **Inbound (`warehouse.fulfillment.events`)** — the integration\n  contract this service consumes. Documented below in full; this is what\n  the original v1 of this file covered.\n- **Outbound analytics (`warehouse.labor-performance.analytics`)** — the\n  ANALYTICS stream this service publishes its own domain events to,\n  feeding its own analytical data product's projector (ADR 0007). It is\n  consumed today only by this repo's own `cmd/labor-projector`; no other\n  service subscribes. Publishing is opt-in via `EVENT_PUBLISHER=kafka`,\n  with the log publisher as the default.\n- **Outbound integration (`warehouse.labor-performance.events`)** — this\n  service's first Open-Host-Service topic for OTHER bounded contexts\n  (ADR 0013). Before this topic existed, labor-performance was the\n  fleet's only pure event sink: it consumed `TaskCompleted` from\n  fulfillment-execution but published nothing any sibling service could\n  subscribe to. `TaskPerformanceRecorded` is published here so\n  workforce-management (the first intended consumer) can build an\n  event-fed local cache instead of calling this service synchronously\n  over REST. Publishing is opt-in via `EVENT_PUBLISHER=kafka`, same as\n  the analytics stream.\n\nThe three are deliberately separate topics so the integration contracts\n(inbound and outbound) and the analytical stream all evolve\nindependently.\n\n## Inbound: a pure consumer of fulfillment-execution\n\nUnlike every other `apis/asyncapi.yaml` in this fleet (which document\nonly what a service PUBLISHES), this section describes what this\nservice SUBSCRIBES TO: it is a **pure Kafka consumer** of\n`fulfillment-execution`'s already-published `TaskCompleted` integration\nevent. This service has no REST or Go-import dependency on\nfulfillment-execution — everything it needs (`associate_id`, `task_id`,\n`duration_seconds`) already travels on the Kafka event (see the\nbounded-context-boundary decision in ADR\n0003-kafka-choreography-consumer-of-fulfillment-execution.md).\n\n## Message format\n\nEvery message on `warehouse.fulfillment.events` uses the fixed,\nCloudEvents-*like* (but NOT strict CloudEvents-spec) envelope shared by\nevery warehouse-systems publisher in this fleet:\n\n```json\n{\n  \"event_id\": \"uuid-v4\",\n  \"event_type\": \"TaskCompleted\",\n  \"occurred_at\": \"2026-08-29T22:00:00Z\",\n  \"source\": \"fulfillment-execution\",\n  \"data\": { ... }\n}\n```\n\n`event_id` is the de-duplication key this service uses (see the\n`ProcessedEvents` idempotency gate) — NOT `task_id`, since a task id\ncould in principle be reused after a very long time.\n\n## Shared, fan-out topic\n\n`warehouse.fulfillment.events` is the SAME topic `wes-work-planning`\nalready consumes from, under its own consumer group. This service uses\nits own consumer group id (`labor-performance` by default,\n`KAFKA_CONSUMER_GROUP` env), so both consumers see every message\nindependently. Only `event_type == \"TaskCompleted\"` is acted on — every\nother event type on this shared topic (there are none from\nfulfillment-execution today, but the topic is shared/fan-out by\nconvention) is silently skipped, not an error.\n\n## Known wire-contract gap: no `task_type` field yet\n\nAs verified against fulfillment-execution's actual\n`TaskCompletedData` struct this session (`internal/adapters/outbound/kafka/publisher.go`\non its `feature/labor-performance-hooks` branch), the payload below is\nthe REAL, current shape — it does **not** carry a `task_type` field.\nThis service resolves TaskType as `\"\"` (unclassified) for every\nconsumed event as a result; see `shared.ParseTaskTypeLenient`'s doc\ncomment in the code and the README's \"Known gaps\" section. A future\nfulfillment-execution enrichment adding `task_type` to this payload\nwould let this service resolve it directly, with no other change\nrequired on this side.\n\n## Graceful degradation on an older payload\n\n`associate_id` and `duration_seconds` are the two fields added by\nfulfillment-execution's `feature/labor-performance-hooks` change. Both\nare optional on the wire (`omitempty` on the publisher's own struct):\nan older payload that predates that enrichment simply omits them, and\nthis service's JSON unmarshaling already degrades those absent fields\nto their Go zero values (`\"\"` / `0`) — exactly the \"no checked-in\noccupant\" / \"unmeasurable duration\" business facts this service's own\naggregate invariants already model, not an error.\n",
     "contact": {
       "name": "Labor Performance Team",
       "url": "https://github.com/claudioed/labor-performance",
@@ -553,6 +553,165 @@
           ]
         }
       }
+    },
+    "warehouse.labor-performance.events": {
+      "description": "The dedicated INTEGRATION topic this service owns and publishes to (ADR 0013) — its first Open-Host-Service Published Language for OTHER bounded contexts to consume. Separate from the analytics topic above (which feeds only this repo's own projector) so the two streams evolve independently. Before this topic existed, labor-performance was the fleet's only pure event sink: it consumed `TaskCompleted` from fulfillment-execution but published nothing any sibling service could subscribe to. Publishing is opt-in via `EVENT_PUBLISHER=kafka`; the default remains the log publisher. The intended first consumer is workforce-management, building an event-fed local cache to replace a synchronous HTTP call (a parallel change to this one).",
+      "publish": {
+        "operationId": "publishLaborIntegrationEvents",
+        "summary": "Publish TaskPerformanceRecorded for other bounded contexts to consume.",
+        "description": "Emits TaskPerformanceRecorded onto the integration topic, wrapped in the shared Envelope v1 shape (the SAME outer shape this service consumes on `warehouse.fulfillment.events` — no `schema_version` field, unlike the analytics envelope, since this is a Published Language contract, not the internal analytics stream). The message key is the AssociateId — NOT the TaskType the analytics topic keys on — so every event for one associate lands on a single partition and is applied in publish order, which is what a per-associate read-cache consumer needs. A task with no checked-in associate (e.g. a robot station) is keyed on the empty string. `event_id` is the consumer's de-duplication key.\nOnly `TaskPerformanceRecorded` is part of this contract today. `LaborStandardDefined`/`LaborStandardRevised` remain analytics-only; widening this topic to carry them is a future, additive change.",
+        "tags": [
+          {
+            "name": "labor-performance"
+          }
+        ],
+        "message": {
+          "name": "TaskPerformanceRecorded",
+          "title": "Task Performance Recorded (integration)",
+          "summary": "One completed task was scored against the standard active at completion time — published for other bounded contexts (ADR 0013).",
+          "description": "Raised by RecordTaskPerformance for every consumed TaskCompleted, the SAME domain event as the analytics stream's TaskPerformanceRecorded message, on a different topic and in the plain integration Envelope (no `schema_version`). Partition key is AssociateId, not TaskType.\n`efficiency_pct` is NULLABLE and null is a real, expected value: null whenever the task could not be scored — no active standard for its TaskType at completion time, or a non-positive duration. Consumers MUST NOT coerce null to 0.\n`completed_at` is the BUSINESS time; `occurred_at` (on the outer envelope) is the publish/ingestion time. The two differ for any replayed or late-ingested event.",
+          "contentType": "application/json",
+          "tags": [
+            {
+              "name": "task"
+            },
+            {
+              "name": "labor-performance"
+            }
+          ],
+          "payload": {
+            "type": "object",
+            "title": "Envelope + TaskPerformanceRecorded data (integration topic)",
+            "description": "The plain integration Envelope (event_id/event_type/occurred_at/ source/data — NO schema_version, unlike the analytics envelope) wrapping the SAME TaskPerformanceRecorded facts, published on warehouse.labor-performance.events (ADR 0013) for other bounded contexts. Partition key on the wire is the AssociateId.",
+            "required": [
+              "event_id",
+              "event_type",
+              "occurred_at",
+              "source",
+              "data"
+            ],
+            "properties": {
+              "event_id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Unique per published message. This is a downstream consumer's de-duplication key under Kafka's at-least-once delivery.",
+                "x-parser-schema-id": "<anonymous-schema-37>"
+              },
+              "event_type": {
+                "type": "string",
+                "enum": [
+                  "TaskPerformanceRecorded"
+                ],
+                "x-parser-schema-id": "<anonymous-schema-38>"
+              },
+              "occurred_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When this service emitted the event (publish/ingestion time).",
+                "x-parser-schema-id": "<anonymous-schema-39>"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "labor-performance"
+                ],
+                "x-parser-schema-id": "<anonymous-schema-40>"
+              },
+              "data": {
+                "type": "object",
+                "required": [
+                  "task_id",
+                  "task_type",
+                  "actual_seconds",
+                  "completed_at"
+                ],
+                "properties": {
+                  "task_id": {
+                    "type": "string",
+                    "description": "fulfillment-execution's task id, treated as an opaque foreign reference. This context does not own or validate it.",
+                    "example": "task-10231",
+                    "x-parser-schema-id": "<anonymous-schema-42>"
+                  },
+                  "associate_id": {
+                    "type": "string",
+                    "description": "The associate who completed the task, and the partition key of this topic. The EMPTY STRING is a legitimate, expected value: the completing station had no checked-in occupant (e.g. a robot station).",
+                    "example": "assoc-4471",
+                    "x-parser-schema-id": "<anonymous-schema-43>"
+                  },
+                  "task_type": {
+                    "type": "string",
+                    "description": "PICK, PACK, SLAM, or the empty string when the task type could not be resolved (see the analytics envelope's identical field for why this is common today).",
+                    "example": "PICK",
+                    "x-parser-schema-id": "<anonymous-schema-44>"
+                  },
+                  "efficiency_pct": {
+                    "type": "number",
+                    "format": "double",
+                    "nullable": true,
+                    "description": "100 * standard_seconds_at_completion / actual_seconds, or NULL when the task could not be scored. NULL is a real business fact (\"unmeasurable\"); a consumer MUST NOT coerce it to 0.",
+                    "example": 91.2,
+                    "x-parser-schema-id": "<anonymous-schema-45>"
+                  },
+                  "actual_seconds": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "The measured duration. `0` means unmeasurable.",
+                    "example": 41,
+                    "x-parser-schema-id": "<anonymous-schema-46>"
+                  },
+                  "completed_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When the associate actually finished the task — the BUSINESS time, distinct from the envelope's occurred_at.",
+                    "example": "2026-09-05T09:30:00Z",
+                    "x-parser-schema-id": "<anonymous-schema-47>"
+                  }
+                },
+                "x-parser-schema-id": "<anonymous-schema-41>"
+              }
+            },
+            "x-parser-schema-id": "TaskPerformanceRecordedIntegrationEnvelope"
+          },
+          "examples": [
+            {
+              "name": "scoredTaskIntegration",
+              "summary": "A task scored at 91.2% of standard, published for a downstream consumer.",
+              "payload": {
+                "event_id": "7a2d5e91-3f04-4c8b-9e12-8b4a6d1c5f30",
+                "event_type": "TaskPerformanceRecorded",
+                "occurred_at": "2026-09-05T11:00:00Z",
+                "source": "labor-performance",
+                "data": {
+                  "task_id": "task-10231",
+                  "associate_id": "assoc-4471",
+                  "task_type": "PICK",
+                  "efficiency_pct": 91.2,
+                  "actual_seconds": 41,
+                  "completed_at": "2026-09-05T09:30:00Z"
+                }
+              }
+            },
+            {
+              "name": "unscorableTaskIntegration",
+              "summary": "A real, counted task that could not be scored, on the integration topic. efficiency_pct is explicitly null.",
+              "payload": {
+                "event_id": "1c9f4b82-6e35-4a07-bd91-2f8e5c3a7d64",
+                "event_type": "TaskPerformanceRecorded",
+                "occurred_at": "2026-09-05T11:05:00Z",
+                "source": "labor-performance",
+                "data": {
+                  "task_id": "task-10233",
+                  "associate_id": "",
+                  "task_type": "",
+                  "efficiency_pct": null,
+                  "actual_seconds": 0,
+                  "completed_at": "2026-09-05T09:45:00Z"
+                }
+              }
+            }
+          ]
+        }
+      }
     }
   },
   "components": {
@@ -560,6 +719,7 @@
       "LaborStandardDefined": "$ref:$.channels.warehouse.labor-performance.analytics.publish.message.oneOf[0]",
       "LaborStandardRevised": "$ref:$.channels.warehouse.labor-performance.analytics.publish.message.oneOf[1]",
       "TaskPerformanceRecorded": "$ref:$.channels.warehouse.labor-performance.analytics.publish.message.oneOf[2]",
+      "TaskPerformanceRecordedIntegration": "$ref:$.channels.warehouse.labor-performance.events.publish.message",
       "TaskCompleted": "$ref:$.channels.warehouse.fulfillment.events.subscribe.message"
     },
     "schemas": {
@@ -567,7 +727,8 @@
       "AnalyticsEnvelopeBase": "$ref:$.channels.warehouse.labor-performance.analytics.publish.message.oneOf[0].payload.allOf[0]",
       "LaborStandardDefinedEnvelope": "$ref:$.channels.warehouse.labor-performance.analytics.publish.message.oneOf[0].payload",
       "LaborStandardRevisedEnvelope": "$ref:$.channels.warehouse.labor-performance.analytics.publish.message.oneOf[1].payload",
-      "TaskPerformanceRecordedEnvelope": "$ref:$.channels.warehouse.labor-performance.analytics.publish.message.oneOf[2].payload"
+      "TaskPerformanceRecordedEnvelope": "$ref:$.channels.warehouse.labor-performance.analytics.publish.message.oneOf[2].payload",
+      "TaskPerformanceRecordedIntegrationEnvelope": "$ref:$.channels.warehouse.labor-performance.events.publish.message.payload"
     }
   },
   "x-parser-spec-parsed": true,

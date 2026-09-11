@@ -66,13 +66,16 @@ in the source repository for the full decision record, including why
 propagation is exclusively asynchronous (Kafka) rather than synchronous
 HTTP read-through.
 
-## What "done" looks like — and why it isn't done yet
+## What "done" looks like — and it now is
 
-The extraction is only half complete. This service is a real, tested
-publisher today, but **zero** of its three intended consumers has actually
-built the Kafka consumer that would let them stop reading the old static
-file. Until that wiring lands — as three separate, tracked follow-up PRs in
-those three repositories — this context is additive to the fleet, not yet
-load-bearing. See the [Bounded Context Canvas](./bounded-context-canvas)'s
-Open Questions and [Domain Events](./domain-events) for the honest, current
-state of that gap.
+The extraction is now complete on both fronts. This service is a real,
+tested publisher, and, as of the fleet's bounded-context wiring plan, all
+three of its intended consumers (`fulfillment-execution`,
+`wes-work-planning`, `workforce-management`) actually replay its events
+into a local catalogue cache instead of reading the old static file —
+verified live, with a newly-defined path reaching all three running
+consumers with no restart, and a deactivation propagating the same way.
+This context also now ships its own analytics data product (ADR 0007),
+the last of the fleet's 8 backend contexts to do so. See the
+[Bounded Context Canvas](./bounded-context-canvas) and
+[Domain Events](./domain-events) for the current, live state.

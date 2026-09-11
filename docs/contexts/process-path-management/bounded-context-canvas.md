@@ -47,6 +47,7 @@ duplicate three times or leave it an unowned static file.
 | --- | --- | --- |
 | Published Language | **Yes** | The `ProcessPath` schema, carried field-for-field from the retired YAML file, is the published contract three consumers are expected to conform to. |
 | Open Host Service | **Yes** | The service publishes `warehouse.process-path-management.events` as a stable, documented integration point rather than a bespoke per-consumer contract. |
+| Analytics / Reporting | **Yes, additive** | A separate analytical read side (`cmd/pathmgmt-projector` + `cmd/pathmgmt-reports`) built from this context's own events, on its own topic (`warehouse.process-path-management.analytics`) and database — the "Process Path Catalogue Growth & Change" report. Landed in ADR 0007, closing the last remaining gap in the fleet's analytics data-mesh rollout: 8 of 8 backend contexts now have one. |
 | Execution/Workflow | No | This context takes no position on dispatch, routing, or task assignment. |
 
 ## Inbound Communication
@@ -65,16 +66,35 @@ issuing REST commands against the `ProcessPath` aggregate:
 
 ## Outbound Communication
 
-Exactly **one** relationship in the fleet, and it is not yet wired on the
-consumer side.
+Two relationships in the fleet: the integration Published Language
+(consumer side not yet wired) and, since ADR 0007, a separate,
+additive analytics surface.
 
 | Collaborator(s) | Relationship pattern | Integration | Status |
 | --- | --- | --- | --- |
-| `fulfillment-execution`, `wes-work-planning`, `workforce-management` | Open Host Service + Published Language (this context is upstream Supplier; all three are downstream Conformists) | Kafka topic `warehouse.process-path-management.events` — `ProcessPathCreated`, `ProcessPathUpdated`, `ProcessPathDeactivated` | **Not yet wired.** Topic and publisher are real and tested. All three consumers still boot-load the predecessor static YAML file (`warehouse-infra/config/process-paths/sortable-fc.yaml`); wiring each is a separate, tracked follow-up PR in that consumer's own repository, out of scope for this context. |
+| `fulfillment-execution`, `wes-work-planning`, `workforce-management` | Open Host Service + Published Language (this context is upstream Supplier; all three are downstream Conformists) | Kafka topic `warehouse.process-path-management.events` — `ProcessPathCreated`, `ProcessPathUpdated`, `ProcessPathDeactivated` | **Live.** All three consumers now replay this topic into a local catalogue cache (verified live, no-restart propagation); the predecessor static YAML file is frozen and superseded. |
+| Analytics consumers (WES Dashboard, console-BFF) | Open Host Service, separate analytics surface | REST — `GET /reports/catalogue-growth`, `GET /reports/catalogue-growth/freshness` via `cmd/pathmgmt-reports`, fed by a dedicated `warehouse.process-path-management.analytics` Kafka topic | **Live** (ADR 0007). Fleet-parity analytical data product — a separate writer (`cmd/pathmgmt-projector`)/reader (`cmd/pathmgmt-reports`)/database triad, never touching the OLTP path. The "Process Path Catalogue Growth & Change" report is bucketed by **day** (no spatial dimension — a process path is a single flat identity, unlike facility-layout's site/zone hierarchy) with fields `dayBucket`, `pathsDefined`, `pathsRevised`, `pathsDeactivated`. Verified live: real `/healthz` 200 and `/reports/catalogue-growth/freshness` returning `{"lagSeconds":0}` against the running pod. |
 
-This context has **zero REST dependency** on any of the three, in either
-direction, and no synchronous dependency exists today from any of them
-back onto this service.
+This context has **zero REST dependency** on any of the three catalogue
+consumers, in either direction, and no synchronous dependency exists
+today from any of them back onto this service. The analytics topic is
+strictly additive and does not touch the integration topic's contract —
+one domain event now enqueues two outbox rows (one per topic) in the
+same transaction as the aggregate change (ADR 0003, extended by ADR
+0007).
+
+## MCP tools
+
+Since PR #26/#27, this context also publishes a read-only MCP tool
+surface (port 8090, Streamable HTTP), a Customer of which is
+`warehouse-ops-agent` (wired but not yet consumed by any use case — see
+the [Context Map](/strategic-design/context-map)'s MCP surface section):
+
+| Tool | Reads |
+| --- | --- |
+| `get_process_path` | One `ProcessPath` by id, over the OLTP read path |
+| `list_process_paths` | The full catalogue, over the OLTP read path |
+| `get_catalogue_growth_report` | The analytics data product's "Process Path Catalogue Growth & Change" report, over the reports read path — verified with a real `tools/call` against the live pod |
 
 ## Ubiquitous Language
 
@@ -120,18 +140,18 @@ Three invariants, enforced by the domain model, not by convention:
 - **No-op correctness**: repeated `Deactivate` calls against an
   already-deactivated path never republish `ProcessPathDeactivated`; a
   byte-for-byte-identical `Revise` never republishes `ProcessPathUpdated`.
-- **Consumer wiring** (currently zero): the count of the three intended
-  downstream services with a live Kafka consumer on
-  `warehouse.process-path-management.events`. Today: 0 of 3.
+- **Consumer wiring**: the count of the three intended downstream services
+  with a live Kafka consumer on `warehouse.process-path-management.events`.
+  Now 3 of 3 — verified live, a newly-defined path reached all three
+  running consumers with no restart, and a deactivation propagated the
+  same way.
+- **Analytics freshness**: `GET /reports/catalogue-growth/freshness`
+  target p95 event-to-report lag under 30 seconds, matching the fleet's
+  sibling contexts (ADR 0007). Verified live against the running pod
+  returning `{"lagSeconds":0}`.
 
 ## Open Questions
 
-- **When will the three intended consumers actually wire a consumer?** This
-  is the central open item for this context: `fulfillment-execution`,
-  `wes-work-planning`, and `workforce-management` all still boot-load the
-  predecessor static YAML file, each as a separate, tracked follow-up PR
-  in that consumer's own repository. Until at least one lands, this
-  context's publisher has no real effect on fleet behavior.
 - Should this service ever need a synchronous read path (e.g. for
   first-boot backfill in a new consumer), or is "replay the event stream
   from offset zero" always sufficient?

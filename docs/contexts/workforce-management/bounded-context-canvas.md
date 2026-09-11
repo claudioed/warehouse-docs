@@ -81,18 +81,22 @@ codebase.
 
 | Collaborator | Message / Contract | Pattern |
 | --- | --- | --- |
-| *(none live)* | — | — |
+| `process-path-management` | Kafka, topic `warehouse.process-path-management.events`, events `ProcessPathCreated`/`Updated`/`Deactivated` | Open Host Service + Published Language, Conformist downstream — this context replays the topic from `FirstOffset` into a local `kafkacatalog` read model, replacing a boot-time static-YAML load. **Live**, verified with no restart on both a new path definition and a deactivation. See `process-path-management` ADR 0002 and this repo's own ADR 0013. |
+| `labor-performance` | Kafka, topic `warehouse.labor-performance.events`, event `TaskPerformanceRecorded` | Customer/Supplier — this context is a **Conformist** downstream, consuming `labor-performance`'s Published Language into a local, event-fed running-mean cache. **Live** (ADR 0019), the SAME architectural pattern this context's own `kafkacatalog` package already applies to `process-path-management`'s events above: per-process-unique consumer group, `FirstOffset` replay, `Ready()`/`WaitReady()` readiness gate. |
 
-This context has **no live inbound integration** from any sibling bounded
-context. Every one of its ten REST/MCP use cases is invoked directly by a
-human operator (via `workforce-mfe` or a REST client) or an AI agent (via
-the MCP inbound adapter, ADR-0008) — never by another bounded context's
-outbound event or API call. `installedStations` — a fact `wes-work-planning`
-also holds — arrives **in the `CommitShiftPlan` request payload** from the
-caller rather than being fetched from Work Planning, precisely so this
-Supporting context takes no synchronous dependency on any sibling. This is a
+Every other one of this context's ten REST/MCP use cases is invoked directly
+by a human operator (via `workforce-mfe` or a REST client) or an AI agent
+(via the MCP inbound adapter, ADR-0008) — never by another bounded
+context's outbound event or API call, with the one exception above.
+`installedStations` — a fact `wes-work-planning` also holds — still
+arrives **in the `CommitShiftPlan` request payload** from the caller
+rather than being fetched from Work Planning, precisely so `CommitShiftPlan`
+itself takes no synchronous dependency on any sibling. This is a
 deliberate architectural property (see Business Decisions and Assumptions
-below), not an integration gap waiting to be filled.
+below), not an integration gap waiting to be filled — and it is
+unaffected by the new `labor-performance` consumer above, which only
+feeds `ProposePathPlan`'s optional measured-rate enrichment, a separate
+use case.
 
 ## Outbound Communication
 

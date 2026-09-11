@@ -31,6 +31,18 @@ that would blur its own boundary, and so the console's one genuinely
 cross-cutting screen has a single, coherent home instead of being
 assembled client-side.
 
+The "five upstream contexts" above is the population of contexts this
+agent's E1/E2/E3 use cases and console-BFF fan-out actually *call* and
+*correlate*. It is a distinct count from this agent's full outbound MCP
+**client** surface, which is now eight bounded contexts (the fleet's
+entire backend minus this agent itself): the five above, live and
+consumed since this repo's founding, plus three more —
+`order-management`, `labor-performance`, `process-path-management` —
+whose MCP clients were wired into the composition root in a later change
+(ADR 0007) but are not yet called by any use case. See
+[Outbound Communication](#outbound-communication) below for the honest
+distinction between "wired" and "consumed."
+
 ## Strategic Classification
 
 | Aspect | Classification |
@@ -114,6 +126,9 @@ upstream services.
 | `workforce-management` | MCP tool calls (`get_staffing_gap`, `propose_path_heads`) | Conformist, read-only | E1/E3 correlation inputs: staffing gap. Not part of the console-BFF fan-out. |
 | `facility-layout` | MCP tool calls (`list_sites`, `get_site_layout`, `get_zone_grid`) | Conformist, read-only | E3 daily-brief grouping: site/zone structure. Not part of the console-BFF fan-out. |
 | `order-management`, `inventory-storage`, `wes-work-planning`, `fulfillment-execution`, `workforce-management`, `facility-layout`, `labor-performance` | HTTP REST (`GET /reports/*`, `GET /reports/*/freshness`) | Conformist, read-only | Console-BFF dashboards (`GET /console/reports/wms`, `/wes`): each context's own analytical reports reader, on a separate base URL from its OLTP API. |
+| `order-management` | MCP tool call (`get_order`) | Conformist, read-only — **wired, not yet consumed by any use case** | Client and port added in ADR 0007 (PR #44), mirroring the existing `InventoryStorageClient` precedent of wiring an upstream ahead of any consumer. Not called by `DailyBrief`, `FlowBalanceAdvisory`, or the console-BFF's `GET /orders/{id}` REST fan-out above, which is a separate adapter family. |
+| `labor-performance` | MCP tool calls (`get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard`) | Conformist, read-only — **wired, not yet consumed by any use case** | Same ADR 0007 / PR #44 change. Full unit-test coverage against a real Streamable-HTTP MCP test server; zero callers among existing use cases. |
+| `process-path-management` | MCP tool calls (`get_process_path`, `list_process_paths`, `get_catalogue_growth_report`) | Conformist, read-only — **wired, not yet consumed by any use case** | Same ADR 0007 / PR #44 change. |
 
 This agent is a **Conformist** on every one of these edges: it accepts
 each upstream's published shape exactly as given, translates nothing
@@ -211,6 +226,17 @@ borrows unredefined from its five upstream contexts.
 
 ## Open Questions
 
+- **Three outbound MCP clients are wired but genuinely unconsumed.**
+  `order-management`, `labor-performance`, and `process-path-management`
+  clients exist in the composition root (`internal/adapters/outbound/mcpclient/`),
+  each with a typed port interface and full unit-test coverage, since ADR
+  0007 (PR #44). None is called by `DailyBrief`, `FlowBalanceAdvisory`, or
+  any other existing use case — this documentation pass states that
+  plainly rather than implying a T2/T3-style order-lifecycle correlation,
+  labor-coaching alert, or process-path-aware routing decision already
+  consumes them. The same tradeoff the pre-existing `InventoryStorageClient`
+  precedent already accepted: three more Go types and three more env vars
+  exist with no current caller.
 - **StrandedReservation (E2) is a disclosed, real gap.** Its policy
   (`internal/domain/policy.Evaluate`) and application-layer use case
   (`internal/application/usecases.stranded_reservation.go`) exist and are

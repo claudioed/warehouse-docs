@@ -7,6 +7,19 @@ description: Kafka integration for process-path-management — topic, envelope, 
 
 # Async API
 
+## Two topics
+
+This context publishes on two separate Kafka topics, deliberately kept
+apart so their contracts evolve independently:
+
+- **`warehouse.process-path-management.events`** — the integration
+  Published Language, documented below. Three sibling contexts consume it.
+- **`warehouse.process-path-management.analytics`** — a second,
+  additive analytics-only topic (ADR 0007) feeding this service's own
+  `cmd/pathmgmt-projector`. See
+  [Bounded Context Canvas](./bounded-context-canvas)'s Outbound
+  Communication table for its REST reports surface.
+
 ## Topic
 
 `warehouse.process-path-management.events`
@@ -57,16 +70,15 @@ which makes a local, event-maintained cache in each consumer the natural
 fit. See the ADR in the source repository (`docs/docs/adr/0001-*.md`) for
 the full reasoning.
 
-## Zero live consumers today
+## Live consumers today
 
-:::warning[Read before assuming this is wired]
-The topic and this service's publisher are **real and tested**. However,
-as of this writing, **none** of `fulfillment-execution`,
-`wes-work-planning`, or `workforce-management` has a Kafka consumer wired
-to this topic. All three still boot-load the predecessor static YAML file.
-Wiring each is a separate, tracked follow-up PR in that consumer's own
-repository — out of scope for this context. See
-[Domain Events](./domain-events) and the platform
+:::note[All three intended consumers are now wired]
+The topic and this service's publisher are **real and tested**, and, as
+of the fleet's bounded-context wiring plan, all three of
+`fulfillment-execution`, `wes-work-planning`, and `workforce-management`
+have a live Kafka consumer wired to this topic — each replays it into a
+local read model rather than reading a live value on every dispatch
+decision. See [Domain Events](./domain-events) and the platform
 [Context Map](/strategic-design/context-map) for the full, honest state.
 :::
 

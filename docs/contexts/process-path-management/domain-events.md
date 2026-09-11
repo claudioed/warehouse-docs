@@ -8,35 +8,35 @@ description: ProcessPathCreated, ProcessPathUpdated, ProcessPathDeactivated — 
 # Domain Events
 
 Three past-tense, business-meaningful events, all published on
-`warehouse.process-path-management.events`. See the
+`warehouse.process-path-management.events`, and (since ADR 0007) fanned
+out a second time onto the separate analytics topic
+`warehouse.process-path-management.analytics`. See the
 [Aggregate Design Canvas](./aggregate-design-canvas) for the commands that
 trigger them and [Async API](./async-api) for the wire envelope.
 
 | Event | When published | Consumed by |
 | --- | --- | --- |
-| **ProcessPathCreated** | A new `ProcessPath` is successfully defined via `Define` | No consumer wired yet — see [Context Map](/strategic-design/context-map) |
-| **ProcessPathUpdated** | A `Revise` call actually changes `MatchPrefix` or `RequiredCapabilities` (never published for a byte-for-byte-identical revision) | No consumer wired yet — see [Context Map](/strategic-design/context-map) |
-| **ProcessPathDeactivated** | A `ProcessPath` transitions from `Active` to `Deactivated` (never republished on a redundant deactivate call against an already-deactivated path) | No consumer wired yet — see [Context Map](/strategic-design/context-map) |
+| **ProcessPathCreated** | A new `ProcessPath` is successfully defined via `Define` | `fulfillment-execution`, `wes-work-planning`, `workforce-management` (integration topic, live); this context's own `cmd/pathmgmt-projector` (analytics topic, live) |
+| **ProcessPathUpdated** | A `Revise` call actually changes `MatchPrefix` or `RequiredCapabilities` (never published for a byte-for-byte-identical revision) | Same as above |
+| **ProcessPathDeactivated** | A `ProcessPath` transitions from `Active` to `Deactivated` (never republished on a redundant deactivate call against an already-deactivated path) | Same as above |
 
 ## The honest state of consumption
 
 `fulfillment-execution`, `wes-work-planning`, and `workforce-management`
-are this context's three **intended** Conformist consumers — each
-previously boot-loaded the process-path catalogue from a static YAML file
-this service is designed to replace. As of this writing, **none of the
-three has built the Kafka consumer** that would complete that replacement.
-All three are, today, still reading whatever static configuration they read
-before this service existed; this service's publisher runs independently
-and its messages are, for now, unconsumed.
+are this context's three Conformist consumers on the integration topic —
+each previously boot-loaded the process-path catalogue from a static YAML
+file this service replaced. All three now have a live Kafka consumer
+wired (verified: a newly-defined path reached all three running consumers
+with no restart, and a deactivation propagated the same way). See the
+[Bounded Context Canvas](./bounded-context-canvas) and the platform-level
+[Context Map](/strategic-design/context-map) for the full picture.
 
-Wiring each of those three consumers is explicitly out of scope for this
-context's own repository — it is a separate, later, tracked follow-up PR
-in each of those three repositories, not a silent gap. See the
-[Bounded Context Canvas](./bounded-context-canvas)'s Open Questions and the
-platform-level [Context Map](/strategic-design/context-map) for the full
-picture.
+The analytics topic's one consumer, this context's own
+`cmd/pathmgmt-projector`, is also live — see
+[Bounded Context Canvas](./bounded-context-canvas)'s Outbound
+Communication for the analytics data product this feeds.
 
-## What consumers are expected to do once wired
+## What consumers do once wired
 
 - Maintain their own local read model/cache derived from this event
   stream, rather than reading a live value from this service on every
