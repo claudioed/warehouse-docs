@@ -2,18 +2,16 @@
 id: async-api
 title: Async API
 sidebar_label: Async API
-description: The one live Kafka integration this context has — a pure Customer consuming warehouse.fulfillment.events, filtering for TaskCompleted, under its own consumer group.
+description: Two live Kafka integrations for labor-performance — an inbound Customer/Supplier consumption of warehouse.fulfillment.events, and, since ADR 0013, an outbound Open-Host-Service publish onto warehouse.labor-performance.events for workforce-management to consume.
 ---
 
 # Async API
 
-Labor Performance has **exactly one** live Kafka integration, and it is
-inbound only: this context **consumes** the same shared, fan-out topic
-`wes-work-planning` also reads, filters for a single event type, and
-never publishes to it or any other topic another bounded context
-consumes.
+Labor Performance has **two** live Kafka integrations today: one inbound,
+one outbound. Until ADR 0013 it had only the inbound one and was the
+fleet's only pure event sink — this page now documents both directions.
 
-## Consuming `warehouse.fulfillment.events`
+## Inbound: consuming `warehouse.fulfillment.events`
 
 **Topic:** `warehouse.fulfillment.events` — the SAME shared topic
 `wes-work-planning` already consumes from. It is a fan-out topic with
@@ -100,14 +98,70 @@ service's whole job, not a side effect of it.
   `workforce-management`**, in either direction. Everything this context
   needs (`AssociateId`, `TaskType`, `DurationSeconds`) already travels on
   the Kafka event above.
-- **No relationship with `workforce-management` at all.** Labor
-  allocation ("who is on shift, at what rate") and labor performance
-  scoring share no concepts.
+- **`workforce-management` is now a Kafka relationship, not "no
+  relationship at all."** That framing predates ADR 0013. This context
+  still has zero REST dependency on `workforce-management` and never will
+  — labor allocation ("who is on shift, at what rate") and labor
+  performance scoring still share no concepts — but the two contexts are
+  no longer disconnected: `workforce-management` consumes
+  `warehouse.labor-performance.events` (above) for its own read model.
+  The relationship is exclusively asynchronous and one-way; this context
+  has no idea `workforce-management` exists at the code level, since it
+  never imports its package and has no inbound adapter that context
+  reaches.
 - **This context never calls anything synchronously.** This is
   choreography, not orchestration — a below-standard associate is never
   blocked, and a down `labor-performance` instance never slows down
   `fulfillment-execution`'s task-completion hot path; messages simply
   queue in Kafka and are processed on recovery, at-least-once.
+
+## Outbound: publishing `warehouse.labor-performance.events`
+
+**Topic:** `warehouse.labor-performance.events` — a NEW, dedicated
+integration topic, separate from the pre-existing
+`warehouse.labor-performance.analytics` topic below, added in ADR 0013.
+This is this context's **first** Open-Host-Service Published Language for
+another bounded context to consume; before it existed, this service
+consumed `TaskCompleted` but published nothing any sibling service could
+subscribe to.
+
+**What is published:** only `TaskPerformanceRecorded`, raised by every
+successful `RecordTaskPerformance` call (including unscorable/unmeasurable
+rows — see [Domain Events](./domain-events)). `LaborStandardDefined` and
+`LaborStandardRevised` remain analytics-only; widening the integration
+contract to include them is a purely additive future change, not done
+speculatively here.
+
+**Envelope:** the plain, fleet-wide flat envelope (`event_id`,
+`event_type`, `occurred_at`, `source`, `data`) — the SAME shape this
+service consumes on `warehouse.fulfillment.events`, deliberately **not**
+the `AnalyticsEnvelope` variant (which carries an extra `schema_version`)
+the analytics topic below uses, since this is a Published Language
+contract for external consumers, not the internal analytics stream.
+
+**Partition key:** `AssociateId` — not `TaskType`, which the analytics
+publisher keys on. The intended consumer (workforce-management's
+per-associate cache) needs every event for one associate applied in
+publish order on a single partition. A task with no checked-in associate
+(a robot station) keys on the empty string.
+
+**Delivery mechanism:** the same transactional-outbox pattern this
+service already uses for the analytics topic (ADR 0010) — no new
+persistence or delivery code. `postgres.OutboxPublisher` and
+`postgres.OutboxRelay` were already topic-agnostic (one outbox row per
+`(event, encoder)` pair), so adding this topic required zero changes to
+either file; only `cmd/labor/main.go`'s `buildEventPublisher` wiring
+changed, to construct a second encoder alongside the existing analytics
+one. Publishing is opt-in via `EVENT_PUBLISHER=kafka`, same as the
+analytics topic; the log-only default is unchanged.
+
+**Live consumer:** `workforce-management`, replacing what was previously
+a synchronous `GET /task-types/{taskType}/performance` call from
+`ProposePathPlan` with a local, event-fed running-mean cache
+(`LABOR_PERFORMANCE_MODE=kafka-cache`). See that repo's own ADR 0019.
+
+See [ADR 0013](https://github.com/claudioed/labor-performance/blob/develop/docs/docs/adr/0013-labor-performance-integration-events.md)
+in the source repository for the full decision record.
 
 ## Generated reference
 

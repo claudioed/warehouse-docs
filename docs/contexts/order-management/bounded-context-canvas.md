@@ -82,7 +82,7 @@ just a query. (`GetOrder` is the one read-only exception.)
 | caller (external) | `CancelOrder` command (`DELETE /orders/{id}`) | Open Host Service |
 | caller (external) | `GetOrder` query (`GET /orders/{id}`) | Open Host Service |
 | `warehouse-ops-agent` console-bff | `GET /orders/{id}` — first hop of the cross-cutting Order Lifecycle fan-out | Conformist (read-only fan-out) — per ADR-0007, no new endpoint was needed; the BFF is simply another Customer of the existing contract |
-| `order-mgmt-mfe` (this repo's own `web/` Module Federation remote) | This service's full REST API | Conformist — a plain browser client of this service's own contract, per ADR-0007 |
+| `order-mgmt-mfe` (this repo's own `web/` Module Federation remote) | This service's full REST API | Conformist — a plain browser client of this service's own contract, per ADR-0007. **Live**: the remote is real (`web/`, Vite + React, port 5181), scaffolded in PR #48 — a place-order form, a lookup-by-id panel, and a cancel button over this service's 3-endpoint REST API (there is no list/search endpoint to build a list screen against). Not a speculative intent; `npm run build` produces a real, non-empty `remoteEntry.js` the `warehouse-console` shell's federation config resolves. |
 
 ## Outbound Communication
 

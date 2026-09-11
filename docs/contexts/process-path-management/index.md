@@ -23,11 +23,13 @@ each independently boot-loaded — three unowned copies of the same fact,
 revisable only by a coordinated redeploy of all three. This service is the
 single, auditable source of truth in its place.
 
-:::warning[No live consumer yet]
-This context publishes real, tested domain events, but as of this writing
-**none** of its three intended downstream consumers has wired a Kafka
-consumer to them. See [Domain Events](/contexts/process-path-management/domain-events) and
-[Async API](/contexts/process-path-management/async-api) for the full, honest picture.
+:::note[All three intended consumers are wired]
+This context publishes real, tested domain events, and, as of the
+fleet's bounded-context wiring plan, all three of its intended downstream
+consumers have a Kafka consumer wired to them. It also now ships its own
+analytics data product (ADR 0007), the last of the fleet's 8 backend
+contexts to do so. See [Domain Events](/contexts/process-path-management/domain-events) and
+[Async API](/contexts/process-path-management/async-api) for the full picture.
 :::
 
 ## On this page set

@@ -120,3 +120,15 @@ notification** mechanism here, not the storage mechanism.
 
 See [Async API](./async-api) for the envelope, the `type` naming
 convention, and the exact bytes on the wire for `ShiftPlanCommitted`.
+
+## What this page does not cover: inbound events
+
+This page catalogs only the events **this context raises**. Since ADR
+0013 (`process-path-catalogue-validation`) and ADR 0019, this context is
+also a live **consumer** of two sibling contexts' published events —
+`process-path-management`'s `ProcessPathCreated`/`Updated`/`Deactivated`
+(feeding the `kafkacatalog` local cache) and `labor-performance`'s
+`TaskPerformanceRecorded` (feeding the `laborperformancecache` local
+cache used by `ProposePathPlan`'s measured-rate enrichment, ADR 0012 /
+ADR 0019). See [Bounded Context Canvas](./bounded-context-canvas)'s
+Inbound Communication table for both.
