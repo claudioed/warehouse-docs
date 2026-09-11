@@ -130,5 +130,9 @@ also a live **consumer** of two sibling contexts' published events —
 (feeding the `kafkacatalog` local cache) and `labor-performance`'s
 `TaskPerformanceRecorded` (feeding the `laborperformancecache` local
 cache used by `ProposePathPlan`'s measured-rate enrichment, ADR 0012 /
-ADR 0019). See [Bounded Context Canvas](./bounded-context-canvas)'s
+ADR 0019). Since labor-performance ADR 0014 added an additive
+`idle_seconds_before` to that same message, `laborperformancecache` also
+derives a running idle share per `TaskType` from it (this context's own
+ADR 0020) — the same consumer, the same topic, one more derived signal.
+See [Bounded Context Canvas](./bounded-context-canvas)'s
 Inbound Communication table for both.

@@ -82,7 +82,7 @@ codebase.
 | Collaborator | Message / Contract | Pattern |
 | --- | --- | --- |
 | `process-path-management` | Kafka, topic `warehouse.process-path-management.events`, events `ProcessPathCreated`/`Updated`/`Deactivated` | Open Host Service + Published Language, Conformist downstream — this context replays the topic from `FirstOffset` into a local `kafkacatalog` read model, replacing a boot-time static-YAML load. **Live**, verified with no restart on both a new path definition and a deactivation. See `process-path-management` ADR 0002 and this repo's own ADR 0013. |
-| `labor-performance` | Kafka, topic `warehouse.labor-performance.events`, event `TaskPerformanceRecorded` | Customer/Supplier — this context is a **Conformist** downstream, consuming `labor-performance`'s Published Language into a local, event-fed running-mean cache. **Live** (ADR 0019), the SAME architectural pattern this context's own `kafkacatalog` package already applies to `process-path-management`'s events above: per-process-unique consumer group, `FirstOffset` replay, `Ready()`/`WaitReady()` readiness gate. |
+| `labor-performance` | Kafka, topic `warehouse.labor-performance.events`, event `TaskPerformanceRecorded` | Customer/Supplier — this context is a **Conformist** downstream, consuming `labor-performance`'s Published Language into a local, event-fed running-mean cache. **Live** (ADR 0019), the SAME architectural pattern this context's own `kafkacatalog` package already applies to `process-path-management`'s events above: per-process-unique consumer group, `FirstOffset` replay, `Ready()`/`WaitReady()` readiness gate. Since labor-performance ADR 0014 added an additive, nullable `idle_seconds_before` to the SAME message, this context's `laborperformancecache.Consumer` (own ADR 0020) also tracks a running idle share per `TaskType` off the identical stream — no new topic, no new consumer group. `GetStaffingGap` surfaces it as `observedIdlePct`, and `ProposePathPlan` trims proposed heads when it is high (see Business Decisions below). |
 
 Every other one of this context's ten REST/MCP use cases is invoked directly
 by a human operator (via `workforce-mfe` or a REST client) or an AI agent
@@ -103,7 +103,7 @@ use case.
 | Collaborator | Message / Contract | Pattern |
 | --- | --- | --- |
 | `wes-work-planning` | `ShiftPlanCommitted` on topic `warehouse.workforce.events` (Kafka, asynchronous, one message per `PathPlan` line) | Open-Host Service + Published Language — this context is the supplier, one-way, publish-and-forget |
-| `warehouse-ops-agent` | Read-only, via this context's REST staffing-gap read model (`GET /paths/{pathId}/staffing-gap`) and MCP resources (`staffing://{buildingId}/{shiftId}/{pathId}/gap`) | Conformist (read-only fan-out) — never a write, never a synchronous dependency this service must honor |
+| `warehouse-ops-agent` | Read-only, via this context's REST staffing-gap read model (`GET /paths/{pathId}/staffing-gap`, whose response now also carries `observedIdlePct *float64` — ADR 0020) and MCP resources (`staffing://{buildingId}/{shiftId}/{pathId}/gap`) | Conformist (read-only fan-out) — never a write, never a synchronous dependency this service must honor |
 
 This service publishes and forgets: no consumer group of its own, no
 inbound adapter, no synchronous call to any sibling. Committing a shift plan
@@ -153,6 +153,18 @@ path boundary explicitly.
   (`heads = ceil(charge ÷ plannedRate)`) with no persisted state and no
   identity. `CommitShiftPlan` is the human act of commitment, validated as
   one atomic all-or-nothing decision across every `PathPlan` line.
+- **Idle share trims a proposal, but never past a floor of 1 head, and
+  never as a hard cap.** Since [ADR 0020](https://github.com/claudioed/workforce-management/blob/develop/docs/docs/adr/0020-idle-share-staffing-signal.md),
+  `ProposePathPlan` reduces its proposed heads (`ceil(heads * (1 −
+  idleShare))`, floored at 1) when the path's task type's observed idle
+  share — fed from `labor-performance` via the same
+  `laborperformancecache.Consumer` used for the measured-rate signal —
+  strictly exceeds `IDLE_SHARE_TRIM_THRESHOLD` (default `0.30`), and returns
+  an auditable `trimReason` naming the observed share, the threshold, and
+  the before/after head counts. Every non-trim outcome (no idle-share
+  signal wired, no data observed yet, or the share at-or-below threshold)
+  returns the unchanged, pre-idle-share heads — this is a proposal input, a
+  human still commits via `CommitShiftPlan`, exactly as before.
 
 ## Assumptions
 
