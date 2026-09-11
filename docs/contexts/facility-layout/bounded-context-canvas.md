@@ -10,14 +10,19 @@ description: The full ddd-crew Bounded Context Canvas for Facility Layout — pu
 Following the [ddd-crew Bounded Context
 Canvas](https://github.com/ddd-crew/bounded-context-canvas) template.
 
-:::warning[Read this before the tables below]
-`facility-layout` has **zero live integration** with any of the other four
-warehouse-systems services. It publishes no Kafka events to a broker,
-consumes no Kafka events, and has no backend consumer calling its REST API
-in production. Everything below marked *planned* is a **strategic design
-decision that has not been built**. It is documented because the decision is
-real and shapes the service's API and event shapes — not because it is
-running.
+:::info[Integration status: live]
+`facility-layout` is a **live, wired Open Host Service**. Its Kafka
+publisher emits every domain event to `warehouse.facility.events`
+(`EVENT_PUBLISHER=kafka`, ADR-0009), the contract is a published
+[`apis/asyncapi.yaml`](https://github.com/claudioed/facility-layout/blob/develop/apis/asyncapi.yaml),
+and `inventory-storage` is a live Conformist consumer: it maintains a local
+read model of location classifications fed by this topic
+(`LOCATION_LOOKUP_MODE=kafka`, inventory-storage ADR-0013), replacing its
+per-stow synchronous classification call. Verified in the running cluster
+with facility-layout scaled to **zero replicas** — stows were still
+classified correctly from the cache. The WES-tier edges below remain
+*deliberate non-integrations*: available Published Language with no
+consumer, because no use case needs it yet.
 :::
 
 ## Name
@@ -79,41 +84,38 @@ slow-changing structural catalogue, with a first-class rendering capability
 
 | Sender | Communication style | How | Notes |
 |---|---|---|---|
-| `inventory-storage` | **Live, synchronous HTTP, scoped** | `GET /locations/{locationCode}/classification` | The one real, scoped cross-backend call this context participates in. `inventory-storage` calls it at stow time to validate a Hazmat or TemperatureSensitive SKU against the slot's parent Zone's `hazmat`/`temperatureClass` attributes. Note the direction: this call is **outbound from `inventory-storage`'s perspective** and **inbound to `facility-layout`** — `facility-layout` is the callee, never the caller. |
+| `inventory-storage` | **Live, synchronous HTTP, rollback path** | `GET /locations/{locationCode}/classification` | The original scoped cross-backend call: `inventory-storage` called it at stow time to validate a Hazmat or TemperatureSensitive SKU against the slot's parent Zone's `hazmat`/`temperatureClass` attributes. Since inventory-storage ADR-0013 the **primary path is the event-fed cache** (see Outbound Communication); this endpoint is retained as the configured rollback (`LOCATION_LOOKUP_MODE=http`), not deleted. Note the direction: outbound from `inventory-storage`'s perspective, inbound to `facility-layout` — `facility-layout` is the callee, never the caller. |
 | `facility-mfe` (this context's own browser client) | **Live, synchronous HTTP, browser-origin** | `GET /sites`, `GET /sites/{siteCode}/layout` over CORS | A Vite + React Module Federation remote owned in this repo's own `web/` directory, composed at runtime by the separate `warehouse-console` shell. It is a real, live, additive inbound HTTP surface — browser calling this service's own published REST API — not a bounded-context relationship in the Evans/Vernon sense (`warehouse-console` owns no domain model or aggregate). |
 | Any REST client | **Live, synchronous HTTP** | The full `apis/openapi.yaml` surface (`POST/GET /sites`, `/zones`, `/aisles`, `/location-types`, `/placement-rules`, `/locations`, `/locations/import`) | Usable today by anything that can make an HTTP call — operators, scripts, the getting-started curl walkthrough. Not a wired backend-to-backend integration; a generally-available Open Host Service surface. |
 | MCP clients (Claude, agent frameworks) | **Live, synchronous, read-only** | `list_sites`, `get_site_layout`, `get_zone_grid` MCP tools over Streamable HTTP | A second driving adapter over the same read use cases the HTTP adapter calls. No write tool is registered — the map is written by operators, not agents. |
 
 ## Outbound Communication
 
-:::note[Planned OHS to WES/WMS tier — not yet wired]
-Every row below is a **strategic design decision that has not been built**.
-`facility-layout` has no `internal/adapters/outbound/kafka` package
-implementing a Kafka publisher for its integration events, no `KAFKA_BROKERS`
-wiring for that path enabled by default, and no live consumer in any of the
-four sibling services. What follows is the intended shape once it is wired,
-stated plainly as planned.
+:::note[OHS status: one live Conformist, WES-tier edges deliberately unwired]
+`facility-layout` publishes its whole Published Language — every domain
+event — to `warehouse.facility.events` via
+`internal/adapters/outbound/kafka` (`EVENT_PUBLISHER=kafka`, ADR-0009),
+documented in
+[`apis/asyncapi.yaml`](https://github.com/claudioed/facility-layout/blob/develop/apis/asyncapi.yaml).
+One consumer is live today (`inventory-storage`); the WES-tier rows are
+**deliberate non-integrations** — available Published Language, no
+consumer, because no use case needs it yet — not backlog.
 :::
 
-| Receiver | Communication style | What it would consume | Why (planned) |
+| Receiver | Communication style | What it consumes | Status |
 |---|---|---|---|
-| `inventory-storage` (WMS · Core) | **Planned** — event subscription or `GET /locations/{code}` | `LocationSlotRegistered`, `LocationSlotDecommissioned` | A chaotic-storage stow is only valid against a location that exists and is Active. `inventory-storage` currently owns its own `Bin` identity with no external validation; consuming this would remove the possibility of stowing into a location not on the map. |
-| `wes-work-planning` (WES · Core) | **Planned** — event subscription | `ZoneRegistered`, `AisleRegistered` | The WES ubiquitous language already contains `Zone`, `Travel Path` and `Congestion`, but nothing in the platform was the source of truth for the physical facts behind them. An Aisle's `SequenceHint` and `Direction` are the concrete travel-distance inputs previously missing. |
-| `fulfillment-execution` (Core) | **Planned** — event subscription | `ZoneRegistered`, `AisleRegistered` | Same physical facts as `wes-work-planning`, consumed at dispatch granularity rather than release granularity. |
+| `inventory-storage` (WMS · Core) | **Live** — event subscription, local read-model cache | `ZoneRegistered`, `LocationSlotRegistered`, `LocationSlotDecommissioned` | **Wired and verified.** inventory-storage's `internal/adapters/outbound/facilitycache/` replays the topic from the first offset on every start (per-instance-unique consumer group, readiness gated on catch-up) into a local location-classification cache used by `StowStock`'s Hazmat/TemperatureSensitive placement check (`LOCATION_LOOKUP_MODE=kafka`, its ADR-0013). Verified live with facility-layout at zero replicas: stows still classified correctly from the cache. The synchronous `GET /locations/{code}/classification` remains as the configured rollback (`LOCATION_LOOKUP_MODE=http`). |
+| `wes-work-planning` (WES · Core) | Not wired — deliberate | `ZoneRegistered`, `AisleRegistered` would be the candidates | The WES ubiquitous language contains `Zone`, `Travel Path` and `Congestion`, and an Aisle's `SequenceHint`/`Direction` are the concrete travel-distance inputs — but no shipped use case consumes them yet, so no consumer is built. Deliberate non-integration, not an oversight. |
+| `fulfillment-execution` (Core) | Not wired — deliberate | Same physical facts as `wes-work-planning`, at dispatch granularity | Same reasoning: no consuming use case exists yet. |
 | `workforce-management` (Supporting) | **No planned relationship** | — | Stops at the process-path boundary and never links an associate to a specific location. |
 
-The consumers above would be downstream **Conformists**: they accept this
-context's model rather than negotiating a shared one, and translate it into
-their own vocabulary at their edge. That is the right pattern precisely
-*because* this is a Generic Subdomain — there is nothing to differentiate by
-modelling location differently.
-
-**What would have to be built** for these edges to become real: an
-`internal/adapters/outbound/kafka` package implementing `ports.EventPublisher`
-selected by `EVENT_PUBLISHER=kafka`, publishing to
-`warehouse.facility.events`; an `apis/asyncapi.yaml`; and, in each consumer
-repository, an inbound consumer plus an anti-corruption translation into
-their own models.
+The wired consumer is a downstream **Conformist**: it accepts this
+context's model rather than negotiating a shared one, and translates it
+into its own vocabulary at its edge (an anti-corruption cache keyed the
+way *its* stow check needs). That is the right pattern precisely *because*
+this is a Generic Subdomain — there is nothing to differentiate by
+modelling location differently. Any future WES-tier consumer should follow
+the same shape.
 
 ## Ubiquitous Language
 
@@ -169,9 +171,11 @@ appearing in the domain layer would mean the boundary had leaked.
 
 ## Assumptions
 
-- Downstream consumers, once wired, will act as **Conformists** and
-  translate this context's vocabulary into their own models rather than
-  adopting `LocationSlot`/`Zone` as their own internal aggregates.
+- Downstream consumers act as **Conformists** and translate this context's
+  vocabulary into their own models rather than adopting
+  `LocationSlot`/`Zone` as their own internal aggregates —
+  `inventory-storage`'s location-classification cache is the live proof of
+  the pattern.
 - A `LocationCode`'s parent hierarchy will be read from the denormalized
   `zoneId`/`aisleId` fields already present on events and slot responses,
   never re-derived by a consumer splitting the code string.
@@ -179,9 +183,9 @@ appearing in the domain layer would mean the boundary had leaked.
   and physically signposted — not a frequent operational event — which is
   why the cost of a hierarchical, meaning-carrying identity is accepted.
 - The `EventPublisher` port's single-method shape
-  (`Publish(ctx, event) error`) is deliberately the shape a Kafka producer
-  would satisfy, on the assumption that adding a broker adapter later is
-  purely additive and requires no domain or application change.
+  (`Publish(ctx, event) error`) was deliberately the shape a Kafka producer
+  would satisfy — an assumption that has since been proven: the broker
+  adapter (ADR-0009) was added with no domain or application change.
 - Reads vastly outnumber writes for this catalogue (a slot is registered
   once, read millions of times), which is the assumption underlying
   enforcing PlacementRules at registration time rather than on every read.
@@ -198,18 +202,11 @@ appearing in the domain layer would mean the boundary had leaked.
 
 ## Open Questions
 
-- **Zero live cross-backend integration is the big one.** The Conformist
-  relationship with `inventory-storage`, `wes-work-planning`, and
-  `fulfillment-execution` is strategically decided and API-shaped for, but
-  **not technically wired**: no Kafka publisher exists for the integration
-  topic, no `apis/asyncapi.yaml` exists, and no consumer repository has an
-  inbound adapter or anti-corruption layer for this context's events. This
-  page states that honestly rather than implying an implementation that
-  does not exist.
-- When (and whether) `inventory-storage` moves from the current scoped
-  synchronous classification call to full event subscription — the
-  synchronous path is production-usable today; the event path is the
-  designed steady state and is unbuilt.
+- Whether (and when) `wes-work-planning` / `fulfillment-execution` gain a
+  use case that justifies consuming `ZoneRegistered`/`AisleRegistered` for
+  travel-path and congestion reasoning. Today this is a deliberate
+  non-integration: the Published Language is on the topic and specced, but
+  nobody builds a consumer without a consuming use case.
 - Whether a first-class "revalidate existing slots against current
   PlacementRules" use case is ever warranted, given that rule changes are
   not retroactive today and the only mitigation is a manual read-plus-audit
@@ -217,6 +214,6 @@ appearing in the domain layer would mean the boundary had leaked.
 - Whether `UnderMaintenance` ever gets a use case that *sets* it (today it
   is a legal persisted state the read models render, reachable only via
   external data loads, with no in-service transition into it).
-- How trace propagation across the Kafka boundary will work once this
-  service gains an observability/OTel package — deliberately deferred as a
-  known follow-up in the Kafka integration ADR.
+- How trace propagation across the Kafka boundary will work — the
+  integration publisher is deliberately trace-free by design (ADR-0009),
+  and OTel propagation over the topic remains a known follow-up.

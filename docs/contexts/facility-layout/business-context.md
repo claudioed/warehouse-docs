@@ -122,9 +122,10 @@ This service has **no inbound dependency** on any of the other four
 warehouse-systems services, and never will. Everything it publishes is its
 **Published Language**: eight past-tense domain events plus a stable REST
 surface. The other contexts are downstream **Conformists** to whatever shape
-this service publishes — a relationship that is, as of today, **strategically
-decided but not yet technically wired**. See [Bounded Context
-Canvas](./bounded-context-canvas.md) for the honest status.
+this service publishes — a relationship that is **live**: `inventory-storage`
+consumes `warehouse.facility.events` into a local location-classification
+cache (its ADR-0013). See [Bounded Context
+Canvas](./bounded-context-canvas.md) for every edge's exact status.
 
 ## PlacementRules: the enforcement point
 

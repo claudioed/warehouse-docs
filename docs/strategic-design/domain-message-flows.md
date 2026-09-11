@@ -141,20 +141,22 @@ sequenceDiagram
     PPM->>WES: event ProcessPathCreated / ProcessPathUpdated / ProcessPathDeactivated<br/>(warehouse.process-path-management.events)
 ```
 
-Documented here alongside the still-unwired `facility-layout` flow below
-because both are examples of the same OHS + Published Language pattern at
-different stages of adoption.
+Documented here alongside the `facility-layout` flow below because both
+are examples of the same OHS + Published Language pattern — and both are
+now live.
 
 ```mermaid
 sequenceDiagram
     participant FL as facility-layout
-    participant WES as inventory-storage / wes-work-planning / fulfillment-execution
+    participant INV as inventory-storage
 
-    Note over FL,WES: NOT YET WIRED — facility-layout has zero live<br/>integration with any other context except the<br/>scoped inventory-storage sync HTTP call below
-    FL->>WES: (planned) location validity, zone/aisle travel-path input
+    Note over FL,INV: LIVE — inventory-storage replays warehouse.facility.events<br/>into a local location-classification cache<br/>(LOCATION_LOOKUP_MODE=kafka, ADR-0013 both sides)
+    FL->>INV: event ZoneRegistered / LocationSlotRegistered / LocationSlotDecommissioned<br/>(warehouse.facility.events)
 ```
 
-The one **live** `facility-layout` edge today is
-`inventory-storage → facility-layout` (`GET /locations/{code}/classification`),
-scoped narrowly to Hazmat/TemperatureSensitive SKUs — see
+The event-fed cache replaced the per-stow synchronous
+`GET /locations/{code}/classification` call, which is retained as the
+configured rollback (`LOCATION_LOOKUP_MODE=http`). The WES-tier contexts
+(`wes-work-planning`, `fulfillment-execution`) deliberately do not consume
+facility events — no use case needs them yet — see
 [Context Map](./context-map).
