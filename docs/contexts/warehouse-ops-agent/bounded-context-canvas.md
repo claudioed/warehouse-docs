@@ -39,7 +39,12 @@ entire backend minus this agent itself): the five above, live and
 consumed since this repo's founding, plus three more —
 `order-management`, `labor-performance`, `process-path-management` —
 whose MCP clients were wired into the composition root in a later change
-(ADR 0007) but are not yet called by any use case. See
+(ADR 0007) but were not, at that point, called by any use case. Since ADR
+0008, `labor-performance` is a partial exception: `FlowBalanceAdvisory`
+(E1) now also calls its `get_task_type_utilization` tool to correlate
+observed idleness with queue depth, so `labor-performance` is both a
+"wired but unconsumed" entry (its other three tools) and a live,
+consumed one (this one tool) at the same time. See
 [Outbound Communication](#outbound-communication) below for the honest
 distinction between "wired" and "consumed."
 
@@ -127,7 +132,7 @@ upstream services.
 | `facility-layout` | MCP tool calls (`list_sites`, `get_site_layout`, `get_zone_grid`) | Conformist, read-only | E3 daily-brief grouping: site/zone structure. Not part of the console-BFF fan-out. |
 | `order-management`, `inventory-storage`, `wes-work-planning`, `fulfillment-execution`, `workforce-management`, `facility-layout`, `labor-performance` | HTTP REST (`GET /reports/*`, `GET /reports/*/freshness`) | Conformist, read-only | Console-BFF dashboards (`GET /console/reports/wms`, `/wes`): each context's own analytical reports reader, on a separate base URL from its OLTP API. |
 | `order-management` | MCP tool call (`get_order`) | Conformist, read-only — **wired, not yet consumed by any use case** | Client and port added in ADR 0007 (PR #44), mirroring the existing `InventoryStorageClient` precedent of wiring an upstream ahead of any consumer. Not called by `DailyBrief`, `FlowBalanceAdvisory`, or the console-BFF's `GET /orders/{id}` REST fan-out above, which is a separate adapter family. |
-| `labor-performance` | MCP tool calls (`get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard`) | Conformist, read-only — **wired, not yet consumed by any use case** | Same ADR 0007 / PR #44 change. Full unit-test coverage against a real Streamable-HTTP MCP test server; zero callers among existing use cases. |
+| `labor-performance` | MCP tool calls (`get_associate_scorecard`, `get_task_type_performance`, `get_labor_standard`, `get_task_type_utilization`) | Conformist, read-only — **`get_task_type_utilization` live and consumed since ADR 0008; the other three remain wired, not yet consumed** | The first three: same ADR 0007 / PR #44 change, full unit-test coverage, zero callers among existing use cases. `get_task_type_utilization`: added in ADR 0008 (PR #45) — `FlowBalanceAdvisory` now calls it and feeds the result into `internal/domain/policy.CorrelateUtilization`, producing an additive `Decision.Utilization` field (`claim_flow_problem`, `starvation`, or `staffing_gap_confirmed`) alongside the existing `wesSignal`. See [Business Context](./business-context.md#what-flow-balance-exception-correlation-means-operationally). |
 | `process-path-management` | MCP tool calls (`get_process_path`, `list_process_paths`, `get_catalogue_growth_report`) | Conformist, read-only — **wired, not yet consumed by any use case** | Same ADR 0007 / PR #44 change. |
 
 This agent is a **Conformist** on every one of these edges: it accepts
@@ -226,17 +231,22 @@ borrows unredefined from its five upstream contexts.
 
 ## Open Questions
 
-- **Three outbound MCP clients are wired but genuinely unconsumed.**
-  `order-management`, `labor-performance`, and `process-path-management`
-  clients exist in the composition root (`internal/adapters/outbound/mcpclient/`),
-  each with a typed port interface and full unit-test coverage, since ADR
-  0007 (PR #44). None is called by `DailyBrief`, `FlowBalanceAdvisory`, or
-  any other existing use case — this documentation pass states that
-  plainly rather than implying a T2/T3-style order-lifecycle correlation,
-  labor-coaching alert, or process-path-aware routing decision already
-  consumes them. The same tradeoff the pre-existing `InventoryStorageClient`
-  precedent already accepted: three more Go types and three more env vars
-  exist with no current caller.
+- **Two of three outbound MCP clients wired in ADR 0007 remain genuinely
+  unconsumed; the third graduated in ADR 0008.**
+  `order-management` and `process-path-management` clients exist in the
+  composition root (`internal/adapters/outbound/mcpclient/`), each with a
+  typed port interface and full unit-test coverage, since ADR 0007 (PR
+  #44). Neither is called by `DailyBrief`, `FlowBalanceAdvisory`, or any
+  other existing use case — this documentation pass states that plainly
+  rather than implying a T2/T3-style order-lifecycle correlation or
+  process-path-aware routing decision already consumes them. The same
+  tradeoff the pre-existing `InventoryStorageClient` precedent already
+  accepted: two more Go types and two more env vars exist with no current
+  caller. `labor-performance`'s client is the exception: ADR 0008 (PR
+  #45) wired `GetTaskTypeUtilization` into `FlowBalanceAdvisory`, so that
+  one specific method is now live and consumed — the other three methods
+  on the same client (`get_associate_scorecard`, `get_task_type_performance`,
+  `get_labor_standard`) remain unconsumed.
 - **StrandedReservation (E2) is a disclosed, real gap.** Its policy
   (`internal/domain/policy.Evaluate`) and application-layer use case
   (`internal/application/usecases.stranded_reservation.go`) exist and are

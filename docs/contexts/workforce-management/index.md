@@ -20,7 +20,10 @@ It owns three things: **who is on** (`AssociateShift`), **what the plan is**
 (`ShiftPlan`), and **where people actually are** (`LaborAssignment`). It
 stops deliberately at the **path boundary** — it never links an associate to
 a specific task, by design (ADR-0002), leaving task dispatch entirely to
-`fulfillment-execution`.
+`fulfillment-execution`. Since ADR 0020, it also folds `labor-performance`'s
+observed idle share into `GetStaffingGap` (`observedIdlePct`) and into
+`ProposePathPlan`'s headcount trim — a staffing signal, never a second
+source of truth about task dispatch.
 
 ## On this page set
 

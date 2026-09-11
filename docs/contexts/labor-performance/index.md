@@ -13,10 +13,12 @@ slug: /contexts/labor-performance
 **Labor Performance** owns engineered labor standards (`LaborStandard` —
 "a PICK should take 45s") and actual-vs-standard performance scoring
 (`TaskPerformance` — "this associate's last PICK took 52s, 87% of
-standard"). It is the fleet's eighth bounded-context Go service, added
-after `order-management`, `inventory-storage`, `wes-work-planning`,
-`workforce-management`, `fulfillment-execution`, `facility-layout`, and
-`warehouse-ops-agent`.
+standard"). Since ADR 0014, it also derives idle-gap / utilization
+read models — the between-task waits `TaskPerformance` scoring alone
+never measured — additively on the same event stream. It is the fleet's
+eighth bounded-context Go service, added after `order-management`,
+`inventory-storage`, `wes-work-planning`, `workforce-management`,
+`fulfillment-execution`, `facility-layout`, and `warehouse-ops-agent`.
 
 :::info[Exactly one relationship in the whole fleet]
 This context has **zero REST dependency** on any other service and
@@ -43,7 +45,8 @@ exposes its own REST Open Host Service for a future console screen
   `TaskPerformance` aggregate: state transitions, invariants, commands,
   events, throughput, size.
 - **[Domain Events](/contexts/labor-performance/domain-events)** — `LaborStandardDefined`,
-  `LaborStandardRevised`, `TaskPerformanceRecorded`.
+  `LaborStandardRevised`, `TaskPerformanceRecorded` (and its additive
+  `IdleSecondsBefore` field since ADR 0014).
 - **[Async API](/contexts/labor-performance/async-api)** — the Kafka integration, narrative form.
 
 ## Elsewhere

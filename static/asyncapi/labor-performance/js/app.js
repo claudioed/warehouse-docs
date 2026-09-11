@@ -482,7 +482,7 @@
                             "type": "number",
                             "format": "double",
                             "nullable": true,
-                            "description": "100 * standard_seconds_at_completion / actual_seconds, or NULL when the task could not be scored — no active standard for its type at completion time, or a non-positive duration. NULL is a real business fact (\"unmeasurable\"), never an error and never to be coerced to 0 by a consumer.",
+                            "description": "100 * standard_seconds_at_completion / actual_seconds, or NULL when the task could not be scored — no active standard for its TaskType at completion time, or a non-positive duration. NULL is a real business fact (\"unmeasurable\"), never an error and never to be coerced to 0 by a consumer.",
                             "example": 86.5,
                             "x-parser-schema-id": "<anonymous-schema-34>"
                           },
@@ -493,12 +493,20 @@
                             "example": 52,
                             "x-parser-schema-id": "<anonymous-schema-35>"
                           },
+                          "idle_seconds_before": {
+                            "type": "integer",
+                            "format": "int64",
+                            "nullable": true,
+                            "description": "The measured idle gap immediately preceding this task's claim (previous completion -> this claim instant), added by the idleness feature (ADR 0014-labor-utilization-idleness). NULL — never a fabricated number — when there was no prior completion to measure from (this associate's first- ever observation), the gap was negative/zero (out-of-order Kafka delivery), or the completing station had no checked-in occupant. ADDITIVE field: a Conformist unmarshaling unknown-field-tolerant JSON is unaffected by its presence.",
+                            "example": 90,
+                            "x-parser-schema-id": "<anonymous-schema-36>"
+                          },
                           "completed_at": {
                             "type": "string",
                             "format": "date-time",
                             "description": "When the associate actually finished the task. The BUSINESS time the projector buckets this event on — NOT occurred_at, so a replayed or late-ingested event lands in the hour the work really happened.",
                             "example": "2026-09-05T09:30:00Z",
-                            "x-parser-schema-id": "<anonymous-schema-36>"
+                            "x-parser-schema-id": "<anonymous-schema-37>"
                           }
                         },
                         "x-parser-schema-id": "<anonymous-schema-30>"
@@ -512,7 +520,7 @@
               "examples": [
                 {
                   "name": "scoredTask",
-                  "summary": "A task scored at 86.5% of standard.",
+                  "summary": "A task scored at 86.5% of standard, with a 90s idle gap before it.",
                   "payload": {
                     "event_id": "9c47e3d5-08b2-41fa-bd76-5a1e2c9f4830",
                     "event_type": "TaskPerformanceRecorded",
@@ -525,6 +533,7 @@
                       "task_type": "PICK",
                       "efficiency_pct": 86.5,
                       "actual_seconds": 52,
+                      "idle_seconds_before": 90,
                       "completed_at": "2026-09-05T09:30:00Z"
                     }
                   }
@@ -544,6 +553,7 @@
                       "task_type": "",
                       "efficiency_pct": null,
                       "actual_seconds": 0,
+                      "idle_seconds_before": null,
                       "completed_at": "2026-09-05T09:45:00Z"
                     }
                   }
@@ -595,27 +605,27 @@
                 "type": "string",
                 "format": "uuid",
                 "description": "Unique per published message. This is a downstream consumer's de-duplication key under Kafka's at-least-once delivery.",
-                "x-parser-schema-id": "<anonymous-schema-37>"
+                "x-parser-schema-id": "<anonymous-schema-38>"
               },
               "event_type": {
                 "type": "string",
                 "enum": [
                   "TaskPerformanceRecorded"
                 ],
-                "x-parser-schema-id": "<anonymous-schema-38>"
+                "x-parser-schema-id": "<anonymous-schema-39>"
               },
               "occurred_at": {
                 "type": "string",
                 "format": "date-time",
                 "description": "When this service emitted the event (publish/ingestion time).",
-                "x-parser-schema-id": "<anonymous-schema-39>"
+                "x-parser-schema-id": "<anonymous-schema-40>"
               },
               "source": {
                 "type": "string",
                 "enum": [
                   "labor-performance"
                 ],
-                "x-parser-schema-id": "<anonymous-schema-40>"
+                "x-parser-schema-id": "<anonymous-schema-41>"
               },
               "data": {
                 "type": "object",
@@ -630,19 +640,19 @@
                     "type": "string",
                     "description": "fulfillment-execution's task id, treated as an opaque foreign reference. This context does not own or validate it.",
                     "example": "task-10231",
-                    "x-parser-schema-id": "<anonymous-schema-42>"
+                    "x-parser-schema-id": "<anonymous-schema-43>"
                   },
                   "associate_id": {
                     "type": "string",
                     "description": "The associate who completed the task, and the partition key of this topic. The EMPTY STRING is a legitimate, expected value: the completing station had no checked-in occupant (e.g. a robot station).",
                     "example": "assoc-4471",
-                    "x-parser-schema-id": "<anonymous-schema-43>"
+                    "x-parser-schema-id": "<anonymous-schema-44>"
                   },
                   "task_type": {
                     "type": "string",
                     "description": "PICK, PACK, SLAM, or the empty string when the task type could not be resolved (see the analytics envelope's identical field for why this is common today).",
                     "example": "PICK",
-                    "x-parser-schema-id": "<anonymous-schema-44>"
+                    "x-parser-schema-id": "<anonymous-schema-45>"
                   },
                   "efficiency_pct": {
                     "type": "number",
@@ -650,24 +660,32 @@
                     "nullable": true,
                     "description": "100 * standard_seconds_at_completion / actual_seconds, or NULL when the task could not be scored. NULL is a real business fact (\"unmeasurable\"); a consumer MUST NOT coerce it to 0.",
                     "example": 91.2,
-                    "x-parser-schema-id": "<anonymous-schema-45>"
+                    "x-parser-schema-id": "<anonymous-schema-46>"
                   },
                   "actual_seconds": {
                     "type": "integer",
                     "format": "int64",
                     "description": "The measured duration. `0` means unmeasurable.",
                     "example": 41,
-                    "x-parser-schema-id": "<anonymous-schema-46>"
+                    "x-parser-schema-id": "<anonymous-schema-47>"
+                  },
+                  "idle_seconds_before": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "The measured idle gap immediately preceding this task's claim, added by the idleness feature (ADR 0014-labor-utilization-idleness). NULL — never a fabricated number — when there was no prior completion, the gap was negative/zero (out-of-order Kafka delivery), or the completing station had no checked-in occupant. ADDITIVE field: a Conformist unmarshaling unknown-field- tolerant JSON (e.g. workforce-management's laborperformancecache) is unaffected by its presence.",
+                    "example": 90,
+                    "x-parser-schema-id": "<anonymous-schema-48>"
                   },
                   "completed_at": {
                     "type": "string",
                     "format": "date-time",
                     "description": "When the associate actually finished the task — the BUSINESS time, distinct from the envelope's occurred_at.",
                     "example": "2026-09-05T09:30:00Z",
-                    "x-parser-schema-id": "<anonymous-schema-47>"
+                    "x-parser-schema-id": "<anonymous-schema-49>"
                   }
                 },
-                "x-parser-schema-id": "<anonymous-schema-41>"
+                "x-parser-schema-id": "<anonymous-schema-42>"
               }
             },
             "x-parser-schema-id": "TaskPerformanceRecordedIntegrationEnvelope"
@@ -675,7 +693,7 @@
           "examples": [
             {
               "name": "scoredTaskIntegration",
-              "summary": "A task scored at 91.2% of standard, published for a downstream consumer.",
+              "summary": "A task scored at 91.2% of standard, with a 90s idle gap before it, published for a downstream consumer.",
               "payload": {
                 "event_id": "7a2d5e91-3f04-4c8b-9e12-8b4a6d1c5f30",
                 "event_type": "TaskPerformanceRecorded",
@@ -687,6 +705,7 @@
                   "task_type": "PICK",
                   "efficiency_pct": 91.2,
                   "actual_seconds": 41,
+                  "idle_seconds_before": 90,
                   "completed_at": "2026-09-05T09:30:00Z"
                 }
               }
@@ -705,6 +724,7 @@
                   "task_type": "",
                   "efficiency_pct": null,
                   "actual_seconds": 0,
+                  "idle_seconds_before": null,
                   "completed_at": "2026-09-05T09:45:00Z"
                 }
               }

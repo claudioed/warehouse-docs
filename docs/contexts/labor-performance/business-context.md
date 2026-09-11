@@ -118,6 +118,16 @@ extends all the way through the newer additions to this context:
   measured rate a caller can *choose* to read — it never makes
   `plannedRate` mandatory-derived, and it never requires a synchronous
   call for every plan proposal.
+- **Idle-gap / utilization** (ADR 0014) extends the same observer
+  posture to the gaps *between* tasks: this context derives an
+  associate's idle wait from data it already has (the previous
+  completion and this claim's implied timestamp), publishes it
+  additively on `TaskPerformanceRecorded`, and exposes windowed
+  `GetUtilization` read models over REST and MCP. It never decides
+  whether idleness is a problem worth acting on — `workforce-management`
+  and `warehouse-ops-agent` are the two downstream consumers that turn
+  the measurement into a staffing signal and an advisory correlation,
+  respectively; this context only ever measures and surfaces the number.
 
 Automatic pay/bonus calculation, gamification, and coaching workflows are
 explicitly deferred out of scope. This context does not talk to payroll,

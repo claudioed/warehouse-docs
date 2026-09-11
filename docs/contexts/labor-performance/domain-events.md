@@ -20,6 +20,39 @@ turn — they are the *output* of scoring, not an echo of the input.
 | `LaborStandardRevised` | `LaborStandard` aggregate | A `DefineStandard` call for a `TaskType` that **already** has an active standard — closes the prior record's effective range and opens a new one. | Same as above — own analytics projector only. |
 | `TaskPerformanceRecorded` | `TaskPerformance` aggregate | Every successful `RecordTaskPerformance` call, **including** unscorable (`EfficiencyPct = nil`) and unmeasurable (`ActualSeconds = 0`) rows — the event fires whether or not the task was scoreable, because "recorded" and "scored" are different facts. | Reaches `warehouse.labor-performance.analytics` (this service's own projector) as above, **and**, since ADR 0013, also reaches a second, dedicated integration topic — `warehouse.labor-performance.events` — this context's first Open-Host-Service Published Language for another bounded context. `workforce-management` is the intended and actual first consumer, building an event-fed local cache for `ProposePathPlan`'s measured-rate enrichment. |
 
+## Additive field: `IdleSecondsBefore` (ADR 0014)
+
+Since [ADR 0014](https://github.com/claudioed/labor-performance/blob/develop/docs/docs/adr/0014-labor-utilization-idleness.md),
+`TaskPerformanceRecorded` carries one more field on the SAME event, the SAME
+topics, with no new event type and no new topic: `IdleSecondsBefore *int64`
+(`idle_seconds_before` on the wire) — the measured idle gap between the
+associate's previous completion and this task's claim instant, derived
+entirely from data this service already consumes (`ClaimedAt = CompletedAt −
+DurationSeconds` on the existing `TaskCompleted` payload).
+
+This mirrors `EfficiencyPct`'s existing nullable-pointer discipline exactly:
+`nil` is a real business fact, never a fabricated `0`, and it means one of
+three distinct things —
+
+- **no prior completion** — this associate's first-ever observation, so
+  there is nothing to measure a gap from;
+- **a negative or zero gap** — routine under Kafka's unordered,
+  at-least-once delivery (a "next" claim landing at or before the previous
+  completion is normal, not exceptional), so the observation is skipped
+  rather than recorded as a nonsensical negative idle time;
+- **an empty `AssociateId`** — a robot-occupied station, which this service
+  already treats as a legitimate, non-error case elsewhere.
+
+A recorded (non-nil) gap is capped at `IDLE_GAP_CAP_SECONDS` (default 3600)
+so a gap spanning a shift boundary cannot silently poison a downstream
+running total, without this context modeling shifts itself. This is
+strictly additive on the wire: the field is opt-in for any consumer, exactly
+as `EfficiencyPct` was when it shipped, and the existing
+`warehouse.fulfillment.events` inbound consumption contract is unchanged.
+`workforce-management`'s `laborperformancecache` (ADR 0019 / ADR 0020) is
+the live first consumer of the field, feeding a running idle-share signal
+alongside its pre-existing measured-rate mean.
+
 ## Published, but not (yet) integration events for anyone else
 
 `LaborStandardDefined` and `LaborStandardRevised` are published via a

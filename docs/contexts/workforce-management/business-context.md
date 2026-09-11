@@ -120,7 +120,13 @@ understaffed         ← activeHeads < plannedHeads
 It is a **projection**, not stored state. No aggregate carries a "current
 headcount" field that could drift out of sync with the assignments it
 summarises — read models are derived, never redundantly persisted on the
-write model, as a platform-wide rule.
+write model, as a platform-wide rule. Since [ADR 0020](https://github.com/claudioed/workforce-management/blob/develop/docs/docs/adr/0020-idle-share-staffing-signal.md),
+the same projection also surfaces `observedIdlePct` — `labor-performance`'s
+measured idle share for the path's task type, fed back through the same
+event-fed cache `ProposePathPlan`'s measured-rate enrichment already uses —
+alongside the planned-vs-active gap, `nil` whenever no idle-share signal is
+available. It is visibility layered on the same read model, not a second
+join.
 
 ## Why it stops at the path boundary
 

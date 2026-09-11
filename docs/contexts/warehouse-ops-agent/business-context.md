@@ -63,6 +63,34 @@ naming exactly which upstream tool call produced each fact it used, and
 degrades to the conservative `hold` action, never a guess, if a needed
 signal is unavailable.
 
+Since [ADR 0008](https://claudioed.github.io/warehouse-ops-agent/docs/adr/0008-labor-utilization-advisory-correlation),
+`FlowBalanceAdvisory` also calls `labor-performance`'s
+`get_task_type_utilization` MCP tool — the moment that client graduates
+from wired-but-unconsumed to actually consumed (see
+[Bounded Context Canvas](./bounded-context-canvas.md#outbound-communication))
+— and correlates the result with the queue-depth reading already in hand
+into a purely additive `Decision.Utilization` field, never altering the
+base `assign_labor`/`release_next_work`/`hold` lever or its rationale.
+Three named outcomes, each requiring both a deep-queue/shallow-queue
+reading and the tool's `utilizationPct` to clearly agree before firing:
+
+- **`claim_flow_problem`** — deep queue, high measured idleness: work is
+  available but people are idle, pointing at a `fulfillment-execution`
+  claim/flow problem (stuck tasks, lease churn), not a staffing gap.
+- **`starvation`** — shallow queue, high measured idleness: idle
+  associates with nothing to claim. Surfaced as advisory text pointing at
+  WES release pacing / upstream attention only — this agent has zero
+  write capability and never calls a WES action tool to auto-trigger
+  release pacing.
+- **`staffing_gap_confirmed`** — deep queue, low measured idleness: the
+  existing staffing-gap recommendation is now corroborated in prose by an
+  observed utilization percentage, not just asserted.
+
+Every other combination — a missing path→task-type binding, a nil client,
+an unreachable call, or a `null` `utilizationPct` — degrades identically
+to `nil`, matching this agent's existing deterministic-fallback
+discipline for every other signal.
+
 A sibling capability not yet reachable from either inbound adapter,
 **StrandedReservation (E2)**, correlates expired or expiring task leases
 in `fulfillment-execution` against a usable-stock shortfall in
