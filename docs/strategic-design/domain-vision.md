@@ -57,3 +57,48 @@ current facts, never to make decisions on its own.
 See [Subdomain Classification](./subdomain-classification) for the
 Core/Supporting/Generic verdict on each, and [Context Map](./context-map)
 for how they actually integrate today.
+
+## The real Amazon fulfillment flow, mapped to what's built here
+
+The platform's reference research (`amazon-fulfillment-ddd.md` §1, cited
+above) documents the real, physical station-to-station flow inside an
+Amazon fulfillment center — not an idealized textbook diagram, but the
+actual inbound and outbound value streams described in Amazon's own public
+material and industry trade coverage. This table is that flow, stage by
+stage, against what this platform actually implements — so "which of these
+is real code, and which is deliberately out of scope" is answerable in one
+place instead of scattered across nine repos' own docs.
+
+| Real Amazon FC stage | What physically happens | Built here? |
+| --- | --- | --- |
+| **Inbound dock** | Supplier/inter-FC trucks arrive; a receiving team unloads pallets onto the dock floor (first-come, first-served scheduling). | Not modeled — a physical logistics event upstream of any bounded context's write boundary. |
+| **Receive** | Boxes are scanned and opened; goods are checked and staged (originally into totes/carts). | **Yes.** `inventory-storage`'s `receiveStock` use case — item-scan staging, no bin yet. |
+| **Stow** | An associate (or robot) places each item into a coded bin. Storage is **chaotic/random** — no fixed product location; the item goes wherever there's free space, and the system records the exact bin scanned. | **Yes, and genuinely Amazon-accurate.** `inventory-storage`'s `stowStock` use case implements real chaotic stow (ADR-0002) with hazmat-zone segregation — not a simplification, the actual model. |
+| **Pick** | On order placement the system identifies the bin; a robot brings the pod to the station (or the picker walks to it); the item is retrieved into a tote. | **Yes.** A `PICK` task in `fulfillment-execution`'s pull-dispatched (`claimNext`) task lifecycle, one of `process-path-management`'s four operator-configurable path types. |
+| **Consolidate / convey** | A full tote is routed to packing; for a multi-line order, independently-picked lines converge before packing can start. | **Yes.** `fulfillment-execution`'s `REBIN` task type + its `OrderConsolidation` aggregate (ADR-0016) — the fan-in tracker that waits for every line of an order before creating its `PACK` task. Single-line orders skip this, matching the reference material's own note that "single-item shipments skip Induct and Rebin." |
+| **Pack** | The tote is scanned; a box/bag size is suggested; the associate builds, tapes, and barcodes the carton. | **Yes.** A `PACK` task; sealing produces a `Package` aggregate (`POST /tasks/{id}/seal-package`), gated on scanned contents. Cartonization (box-size selection) is explicitly NOT implemented — flagged as its own future Generic Subdomain rather than duplicated logic. |
+| **SLAM** (Scan, Label, Apply, Manifest) | Packages are weighed against expected weight, labeled, and manifested to a carrier; a mismatch diverts the package rather than shipping it. | **Yes.** `POST /packages/{id}/slam` in `fulfillment-execution`, with the weigh-check invariant enforced (`pack.WeightTolerance`) and a real diversion path (`WeightDiscrepancyDetected` + `PackageDiverted`). |
+| **Ship sort** | A scanner assigns each package a chute by destination, routing it to the correct outbound trailer. | **Deliberately not built.** `fulfillment-execution` ADR-0015 draws this exact boundary as a structural anti-corruption-layer seam: WCS/equipment (conveyors, sorters, print-and-apply heads) is documented Customer/Supplier + Conformist, "buy don't build," with an `EquipmentCommandPort` outbound port that exists specifically so equipment vocabulary never leaks into task-dispatch domain code before a real WCS integration is ever scoped. |
+| **Outbound / load** | Trucks are loaded; shipments leave for a sortation center, then a delivery station, then the customer. | Not modeled — same reasoning as inbound dock: physical logistics outside any bounded context's boundary. |
+
+Two things worth being explicit about, since both are easy to get wrong by
+skimming the catalogue alone:
+
+- **`process-path-management`'s four path types (`PICK`/`PACK`/`REBIN`/`SLAM`)
+  are not an arbitrary subset of the real flow — they are exactly the
+  stages that are genuinely *labor/task* queues** (pull-dispatched,
+  claimable, completable by a station) in this platform's model. Receive
+  and Stow are real, Amazon-accurate stages too, but they are OLTP writes
+  owned by `inventory-storage` against its stock aggregate, not
+  pull-dispatched task types — a receiving/stowing associate's unit of
+  work is "record this stock fact," not "claim the next task off a
+  queue," so they were never candidates for the path catalogue in the
+  first place. This is a modeling distinction, not a gap.
+- **Ship sort is the one real Amazon stage with zero corresponding code**,
+  and that absence is a first-class, load-bearing architectural decision
+  (ADR-0015 in `fulfillment-execution`), not an oversight or a TODO. Adding
+  it as a `process-path-management` catalogue entry or a `fulfillment-execution`
+  task type would contradict that decision — sortation is equipment
+  control (WCS), and this platform's own strategic classification treats
+  "buy, don't build" for the equipment tier as settled, not open.
+
