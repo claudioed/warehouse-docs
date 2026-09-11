@@ -182,7 +182,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'facility-layout',
-      items: [...facilityLayoutSidebar],
+      items: [...facilityLayoutSidebar, 'api-reference/async/facility-layout'],
     },
     {
       type: 'category',

@@ -23,6 +23,7 @@ const CONTEXTS = [
   'wes-work-planning',
   'fulfillment-execution',
   'workforce-management',
+  'facility-layout',
   'process-path-management',
   'labor-performance',
 ];

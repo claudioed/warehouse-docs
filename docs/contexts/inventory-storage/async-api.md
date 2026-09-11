@@ -24,7 +24,7 @@ reference (every message schema, in full), see
 | **Balancer** | `LeastBytes`, `AllowAutoTopicCreation: true` — **no partition key**, so ordering is not guaranteed, even per SKU |
 | **Broker** | `KAFKA_BROKERS`, default `localhost:9092` (shared broker at `~/warehouse-systems/docker-compose.kafka.yml`) |
 | **Selected by** | `EVENT_PUBLISHER=kafka` (default is `log`, so tests and local runs never need a broker) |
-| **Direction** | Publish only — this service has **no inbound Kafka consumer at all** |
+| **Direction** | Publish on this topic. (Separately, this service consumes `warehouse.facility.events` into its location-classification cache — see [the canvas](/contexts/inventory-storage/bounded-context-canvas), inventory-storage ADR-0013.) |
 | **Primary consumer** | `wes-work-planning`, projecting into its own `UsableInventoryObserved` read model, keyed by SKU |
 | **Default content type** | `application/cloudevents+json` |
 

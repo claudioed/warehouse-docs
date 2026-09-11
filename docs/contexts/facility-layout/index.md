@@ -44,19 +44,25 @@ rather than a package bolted onto `inventory-storage`. See
 [Business context](/contexts/facility-layout/business-context) and
 [Bounded Context Canvas](/contexts/facility-layout/bounded-context-canvas) for the full argument.
 
-## Honest integration status
+## Integration status
 
-This context has **zero live cross-backend integration** with any sibling
-warehouse-systems service today, and the [Bounded Context
-Canvas](/contexts/facility-layout/bounded-context-canvas) and [Domain events](/contexts/facility-layout/domain-events)
-pages flag every planned relationship explicitly as *planned, not wired*.
-The one exception on the *inbound* side is a scoped, real HTTP call from
-`inventory-storage` into this context's `GET
-/locations/{locationCode}/classification` endpoint for Hazmat /
-TemperatureSensitive placement checks — and this context's own `facility-mfe`
-browser client, a live Module Federation remote calling this service's REST
-API directly from the browser. Neither of those is a backend-to-backend
-Conformist relationship of the kind the four planned Kafka edges describe.
+This context is a **live, wired Open Host Service**. Its Kafka publisher
+emits every domain event — the whole Published Language — to
+`warehouse.facility.events` (`EVENT_PUBLISHER=kafka`, ADR-0009), the
+contract is published as
+[`apis/asyncapi.yaml`](https://github.com/claudioed/facility-layout/blob/develop/apis/asyncapi.yaml),
+and `inventory-storage` is a live downstream Conformist: it feeds a local
+location-classification cache from this topic
+(`LOCATION_LOOKUP_MODE=kafka`, its ADR-0013) to run its stow-time Hazmat /
+TemperatureSensitive placement check — verified in the running cluster with
+facility-layout scaled to zero replicas. The original synchronous
+`GET /locations/{locationCode}/classification` call is retained as the
+configured rollback path, and this context's own `facility-mfe` browser
+client (a Module Federation remote) plus its read-only MCP tools
+(consumed live by `warehouse-ops-agent`) round out the inbound surface.
+The WES-tier contexts deliberately do **not** consume facility events —
+no use case needs them yet; see the [Bounded Context
+Canvas](/contexts/facility-layout/bounded-context-canvas) for every edge's exact status.
 
 ## Read next
 
@@ -69,7 +75,7 @@ Conformist relationship of the kind the four planned Kafka edges describe.
 - [Aggregate Design Canvas](/contexts/facility-layout/aggregate-design-canvas) — `LocationSlot`,
   the leaf aggregate, and its place in the Site → Zone → Aisle hierarchy.
 - [Domain events](/contexts/facility-layout/domain-events) — the eight past-tense facts this
-  context publishes today, in-process, with no consumer wired yet.
+  context publishes to `warehouse.facility.events`, and who consumes them.
 - [Repository](https://github.com/claudioed/facility-layout) — source,
   ADRs, and the real `apis/openapi.yaml`.
 - [API Reference](/api-reference/rest/facility-layout/facility-layout-api) — every REST endpoint

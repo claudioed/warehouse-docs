@@ -2,33 +2,36 @@
 id: domain-events
 title: Domain events
 sidebar_label: Domain events
-description: The eight past-tense facts this context publishes today, in-process, with no live consumer wired yet.
+description: The eight past-tense facts this context publishes to warehouse.facility.events — three consumed live by inventory-storage, the rest available Published Language.
 ---
 
 # Domain events
 
 This bounded context emits eight past-tense domain events. Together they
-are its **Published Language** — the vocabulary downstream Conformists will
-key off once integration is wired.
+are its **Published Language** — the vocabulary downstream Conformists
+key off. One Conformist is live today: `inventory-storage`'s
+location-classification cache.
 
-:::info[No AsyncAPI specification, and no broker — yet]
-This service has `apis/openapi.yaml` but **no** `apis/asyncapi.yaml`,
-because it does not publish integration events to a broker by default. The
-sibling warehouse-systems services publish over Kafka and each ship an
-AsyncAPI 2.6.0 document; this context does not, and this documentation site
-therefore has **no Async API page** for `facility-layout` under Bounded
-Contexts.
+:::info[Published over Kafka, with a spec — one live consumer]
+This service ships
+[`apis/asyncapi.yaml`](https://github.com/claudioed/facility-layout/blob/develop/apis/asyncapi.yaml)
+(AsyncAPI 2.6.0) alongside `apis/openapi.yaml`. The Kafka publisher
+(`internal/adapters/outbound/kafka`, selected by `EVENT_PUBLISHER=kafka`,
+ADR-0009) emits **every** domain event to `warehouse.facility.events` —
+the whole Published Language, not a curated subset. In the deployed
+cluster this is the active configuration.
 
-Today, events are handed to an `EventPublisher` port with two default
-implementations: a **log publisher** and a **buffered publisher** (used by
-tests). When running against Postgres they are also appended to an `events`
-table (a transactional outbox). A Kafka publisher
-(`internal/adapters/outbound/kafka`) exists behind an
-`EVENT_PUBLISHER=kafka` opt-in, publishing every event to
-`warehouse.facility.events` — but **no consumer in any sibling repository
-currently subscribes to that topic**. The port's signature is deliberately
-the shape a Kafka producer satisfies, so the adapter itself is additive
-infrastructure, not evidence of a wired integration.
+The `EventPublisher` port also has a **log publisher** and a **buffered
+publisher** (tests), and when running against Postgres without
+`EVENT_PUBLISHER=kafka` events are appended to an `events` table (a
+transactional outbox) — those remain the local/dev defaults.
+
+The live consumer is `inventory-storage`
+(`internal/adapters/outbound/facilitycache/`, `LOCATION_LOOKUP_MODE=kafka`,
+its ADR-0013): a local read model of location classifications replacing its
+per-stow synchronous classification call, verified with facility-layout at
+zero replicas. See the generated [Async API
+reference](/api-reference/async/facility-layout) for the full contract.
 :::
 
 ## The type convention
@@ -62,14 +65,14 @@ com.warehouse.wms.facility-layout.locationslot.FacilityLayoutImported
 
 | Event | Payload (key fields) | When published | Consumed by |
 |---|---|---|---|
-| **SiteRegistered** | `siteCode`, `siteName` | A physical facility is added to the warehouse map, via `RegisterSite`. | No consumer wired yet. |
-| **ZoneRegistered** | `zoneId`, `siteCode`, `areaCode`, `zoneCode`, `temperatureClass`, `hazmat` | A behavioral zone is added inside a Site's area, via `RegisterZone`. | No consumer wired yet. Planned: `wes-work-planning`, `fulfillment-execution` (Zone is source-of-truth for their travel-path/congestion reasoning). |
-| **AisleRegistered** | `aisleId`, `zoneId`, `aisleCode`, `sequenceHint`, `direction` | A physical corridor is added inside a Zone, via `RegisterAisle`. | No consumer wired yet. Planned: `wes-work-planning`, `fulfillment-execution` — `sequenceHint` and `direction` are the concrete travel-distance inputs those contexts currently have no other source for. |
-| **LocationTypeRegistered** | `locationType`, `maxWeightKg`, `maxVolumeM3` | A reusable slot shape/kind is defined, via `RegisterLocationType`. | No consumer wired yet. |
-| **PlacementRuleDefined** | `ruleId`, `locationType`, `effect`, `predicate` | A rule constraining which LocationTypes are legal in which Zones is declared, via `DefinePlacementRule`. | No consumer wired yet. |
-| **LocationSlotRegistered** | `locationCode`, `aisleId`, `zoneId`, `locationType`, `maxWeightKg`, `maxVolumeM3` | A coded leaf slot now exists on the warehouse map, via `RegisterLocationSlot` or a successful `ImportFacilityLayout` row. `aisleId`/`zoneId` are denormalised so a consumer never has to parse the code. | No consumer wired yet. Planned: `inventory-storage` — this is the event it would consume to learn that a new `Bin` location is legal to stow into. |
-| **LocationSlotDecommissioned** | `locationCode` | A coded slot is permanently retired, via `DecommissionLocationSlot`. One-way; never followed by a reactivation event. | No consumer wired yet. Planned: `inventory-storage` — the signal to stop offering that location for new work. |
-| **FacilityLayoutImported** | `rowsSubmitted`, `slotsImported`, `rowsRejected` | Once per `ImportFacilityLayout` call — a summary distinct from the per-slot `LocationSlotRegistered` events also fired within the same import. | No consumer wired yet. |
+| **SiteRegistered** | `siteCode`, `siteName` | A physical facility is added to the warehouse map, via `RegisterSite`. | No consumer — available Published Language. |
+| **ZoneRegistered** | `zoneId`, `siteCode`, `areaCode`, `zoneCode`, `temperatureClass`, `hazmat` | A behavioral zone is added inside a Site's area, via `RegisterZone`. | **Live: `inventory-storage`** — its location-classification cache stores the zone's `hazmat`/`temperatureClass`, exactly what its stow-time placement check reads. Candidate for `wes-work-planning`/`fulfillment-execution` travel-path reasoning, deliberately unwired (no use case yet). |
+| **AisleRegistered** | `aisleId`, `zoneId`, `aisleCode`, `sequenceHint`, `direction` | A physical corridor is added inside a Zone, via `RegisterAisle`. | No consumer — available Published Language. `sequenceHint`/`direction` are the concrete travel-distance inputs a future WES-tier consumer would key off. |
+| **LocationTypeRegistered** | `locationType`, `maxWeightKg`, `maxVolumeM3` | A reusable slot shape/kind is defined, via `RegisterLocationType`. | No consumer — available Published Language. |
+| **PlacementRuleDefined** | `ruleId`, `locationType`, `effect`, `predicate` | A rule constraining which LocationTypes are legal in which Zones is declared, via `DefinePlacementRule`. | No consumer — available Published Language. |
+| **LocationSlotRegistered** | `locationCode`, `aisleId`, `zoneId`, `locationType`, `maxWeightKg`, `maxVolumeM3` | A coded leaf slot now exists on the warehouse map, via `RegisterLocationSlot` or a successful `ImportFacilityLayout` row. `aisleId`/`zoneId` are denormalised so a consumer never has to parse the code. | **Live: `inventory-storage`** — joins the slot to its parent zone's attributes via `zoneId` in its cache; a new slot becomes stow-checkable without any restart. |
+| **LocationSlotDecommissioned** | `locationCode` | A coded slot is permanently retired, via `DecommissionLocationSlot`. One-way; never followed by a reactivation event. | **Live: `inventory-storage`** — evicts the slot from its cache; the stow placement check then fails open for that location, by design. |
+| **FacilityLayoutImported** | `rowsSubmitted`, `slotsImported`, `rowsRejected` | Once per `ImportFacilityLayout` call — a summary distinct from the per-slot `LocationSlotRegistered` events also fired within the same import. | No consumer — available Published Language. |
 
 ## Which use case emits what
 
@@ -89,18 +92,17 @@ com.warehouse.wms.facility-layout.locationslot.FacilityLayoutImported
 
 | Adapter | Use | Wired to a live consumer? |
 |---|---|---|
-| `outbound/events` — log publisher | Default. Writes each event to the service log. | No — local/dev only. |
+| `outbound/events` — log publisher | Local/dev default. Writes each event to the service log. | No — local/dev only. |
 | `outbound/events` — buffered publisher | Tests. Collects events in memory for assertion. | No — test-only. |
-| `outbound/postgres` — event publisher | Appends to the `events` table (transactional outbox) when running against Postgres. | No — durable, but nothing drains it. |
-| `outbound/kafka` — integration publisher | Publishes every event to `warehouse.facility.events`, opt-in via `EVENT_PUBLISHER=kafka`. | **No.** The topic exists once opted in; no sibling repository has a subscriber for it. |
+| `outbound/postgres` — event publisher | Appends to the `events` table (transactional outbox) when running against Postgres without `EVENT_PUBLISHER=kafka`. | No — durable local fallback. |
+| `outbound/kafka` — integration publisher | Publishes every event to `warehouse.facility.events` when `EVENT_PUBLISHER=kafka` — the cluster's active configuration. | **Yes** — `inventory-storage`'s location-classification cache consumes `ZoneRegistered`, `LocationSlotRegistered`, `LocationSlotDecommissioned` live. |
 | `outbound/kafka` — analytics publisher | Fans the same events to a second, separate `warehouse.facility.analytics` topic, feeding this context's *own* `cmd/facility-projector` and `cmd/facility-reports`. | Yes — but only to this context's own analytics read side, not to any other bounded context. |
 
-Every event honestly has **"no consumer wired yet"** outside this context's
-own analytics pipeline. The planned Conformist relationships
-(`inventory-storage`, `wes-work-planning`, `fulfillment-execution`) are
-strategic decisions reflected in the event shapes — the denormalised
-`zoneId`/`aisleId` fields exist specifically so that a future consumer never
-has to parse this context's `LocationCode` format — but no such consumer
-exists in code today. See [Bounded Context
-Canvas](./bounded-context-canvas.md#outbound-communication) for the honest
-status of every planned edge.
+Three of the eight events have a live external consumer; the other five
+are **available Published Language** — on the topic and specced in
+`apis/asyncapi.yaml`, with no consumer because no sibling use case needs
+them yet. The denormalised `zoneId`/`aisleId` fields did exactly what they
+were designed for: `inventory-storage`'s cache joins slots to zones without
+ever parsing a `LocationCode`. See [Bounded Context
+Canvas](./bounded-context-canvas.md#outbound-communication) for the status
+of every edge.
