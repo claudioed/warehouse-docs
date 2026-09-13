@@ -33,7 +33,7 @@ documentation.
 | **OrderRef** | The reference back to the released work unit this task or package fulfils. Populated from `WorkReleased.data.work_unit_id`, and carried back out on `TaskCompleted` as `work_unit_id` so Work Planning can correlate. | `shared.OrderRef` |
 | **OrderConsolidation** | Tracks which of an order's required lines have arrived at the Rebin path, exposing `IsComplete()` as the trigger for creating that order's `PACK` task. A small aggregate scoped entirely inside this bounded context. Idempotent on redelivery; rejects an arrival for a line outside the order's established required set (`ErrUnknownLine`). | `internal/domain/consolidation.OrderConsolidation`, `usecases.ArriveAtRebin`, `POST /rebin/arrivals` |
 
-:::note On the CPT acronym
+:::note[On the CPT acronym]
 The domain code defines CPT as **Critical Pull Time**, the warehouse-industry
 reading used throughout this documentation. The service's OpenAPI spec
 expands it once as "Committed Processing Time." Both refer to the same

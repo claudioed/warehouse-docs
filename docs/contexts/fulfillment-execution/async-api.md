@@ -124,7 +124,7 @@ downstream reader takes only the fields it needs.
 
 ## CloudEvents target contract vs. the live wire format
 
-:::warning Contract vs. current wire format
+:::warning[Contract vs. current wire format]
 `apis/asyncapi.yaml` specifies the CloudEvents 1.0 structured envelope
 (`specversion` / `id` / `source` / `type` / `subject` / `time` /
 `datacontenttype` / `data`) on channel

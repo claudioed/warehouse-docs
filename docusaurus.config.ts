@@ -142,6 +142,12 @@ const config: Config = {
         },
         {
           type: 'docSidebar',
+          sidebarId: 'architectureSidebar',
+          position: 'left',
+          label: 'Architecture',
+        },
+        {
+          type: 'docSidebar',
           sidebarId: 'contextsSidebar',
           position: 'left',
           label: 'Bounded Contexts',

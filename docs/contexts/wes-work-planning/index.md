@@ -24,7 +24,7 @@ happen*, WCS says *how equipment performs it*, and this service — the WES
 tier's core — decides **which activities happen when**. That is what
 "conductor" means concretely, not a metaphor added for color.
 
-:::note What Core obliges here
+:::note[What Core obliges here]
 Because this context is classified Core, the platform accepts real cost for
 it: a hand-written domain model with no ORM, invariants enforced in the
 aggregate with a failing-path test for each, a release policy as a

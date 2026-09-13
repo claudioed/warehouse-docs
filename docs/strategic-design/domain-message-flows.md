@@ -97,7 +97,7 @@ sequenceDiagram
     participant LP as labor-performance
 
     FE->>LP: event TaskCompleted (Kafka: warehouse.fulfillment.events, shared fan-out topic)
-    Note over LP: only event_type == "TaskCompleted" acted on;<br/>every other event type silently skipped
+    Note over LP: only event_type == "TaskCompleted" acted on —<br/>every other event type silently skipped
     LP->>LP: policy Score against engineered Standard (frozen at completion time)
     LP->>LP: read model AssociateScorecard updated
     Note over LP: standard is NEVER recomputed retroactively —<br/>ADR-0004

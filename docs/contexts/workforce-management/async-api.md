@@ -87,7 +87,7 @@ The shipped Kafka adapter writes the **flat cross-service envelope** every
 `event_id` is a UUID v4 generated at publish time; `source` is always this
 service's own name; `occurred_at` is RFC 3339 UTC.
 
-:::caution The documented catalog and the wire format differ today
+:::caution[The documented catalog and the wire format differ today]
 `apis/asyncapi.yaml` documents this channel's **target** contract as a
 CloudEvents 1.0 structured-mode envelope — `specversion`/`id`/`source`/
 `type`/`subject`/`time`/`datacontenttype` at the top level, with a

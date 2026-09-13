@@ -40,7 +40,7 @@ boundary exists to avoid. The cost is that the definition is copied across
 services and could drift; the mitigation is that it is tiny, stable, and
 each service's contract is published and linted.
 
-:::note Envelope vs. the published AsyncAPI spec
+:::note[Envelope vs. the published AsyncAPI spec]
 `apis/asyncapi.yaml` documents a **CloudEvents 1.0 structured-mode**
 envelope as the platform's published target contract — reverse-DNS `type`
 naming (`com.warehouse.wes.work-planning.workunit.WorkReleased`), `id`,

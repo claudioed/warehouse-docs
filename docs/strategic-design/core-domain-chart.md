@@ -19,10 +19,10 @@ quadrantChart
     title Core Domain Chart — warehouse-systems
     x-axis Low Complexity --> High Complexity
     y-axis Low Differentiation --> High Differentiation
-    quadrant-1 Core (invest here first)
-    quadrant-2 Complicated but generic (buy/reuse if possible)
+    quadrant-1 Core — invest here first
+    quadrant-2 Complicated but generic — buy or reuse
     quadrant-3 Low priority
-    quadrant-4 Supporting (necessary, not a differentiator)
+    quadrant-4 Supporting — necessary, not a differentiator
     "wes-work-planning": [0.72, 0.88]
     "fulfillment-execution": [0.68, 0.82]
     "inventory-storage": [0.6, 0.78]

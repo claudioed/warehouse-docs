@@ -40,14 +40,14 @@ Every other event is published for observability and future subscribers;
 nothing in the platform reads them yet. Saying so plainly is more useful
 than implying a richer event mesh than exists.
 
-:::caution `RateDeviationDetected` is declared, not raised
+:::caution[`RateDeviationDetected` is declared, not raised]
 It appears in the domain event catalogue and in `apis/asyncapi.yaml`, but no
 use case raises it today: computing rate deviation needs a time-windowed
 actual-rate projection that has not been built. It is documented rather
 than quietly dropped, because it is part of the declared model.
 :::
 
-:::note Two `ShiftPlanCommitted` events, two different contexts
+:::note[Two `ShiftPlanCommitted` events, two different contexts]
 The inbound `ShiftPlanCommitted` this service *consumes* from
 `workforce-management` and the outbound `ShiftPlanCommitted` this service
 *raises* about its own plan share a name and nothing else. The inbound one

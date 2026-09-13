@@ -34,7 +34,7 @@ itself.
 | `LabelApplied` | Package | SLAM passes and the shipping label is applied | — | No — in-process only |
 | `PackageDiverted` | Package | SLAM fails and the package is routed off the standard path | — | No — in-process only |
 
-:::caution Published ≠ defined
+:::caution[Published ≠ defined]
 Only **`TaskCompleted`** is currently carried outside the process. The
 other eight go to `ports.EventPublisher`, which by default is the log
 publisher — they are real domain events with real subscribers *in process*,

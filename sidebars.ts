@@ -11,10 +11,11 @@ import laborPerformanceSidebar from './docs/api-reference/rest/labor-performance
 import laborPerformanceReportsSidebar from './docs/api-reference/rest/labor-performance-reports/sidebar';
 
 /**
- * Four independent sidebars, one per navbar item:
- *  - strategicSidebar:  ddd-crew strategic-design artifacts for the WHOLE fleet
- *  - contextsSidebar:   per-bounded-context tactical DDD + business + async docs
- *  - apiSidebar:        generated REST reference (docusaurus-plugin-openapi-docs)
+ * Five independent sidebars, one per navbar item:
+ *  - strategicSidebar:   ddd-crew strategic-design artifacts for the WHOLE fleet
+ *  - architectureSidebar: C4 levels 1-3, domain/data models, runtime flows
+ *  - contextsSidebar:    per-bounded-context tactical DDD + business + async docs
+ *  - apiSidebar:         generated REST reference (docusaurus-plugin-openapi-docs)
  *  - (ADRs is a single top-level link, not a sidebar, see navbar)
  */
 const sidebars: SidebarsConfig = {
@@ -34,6 +35,29 @@ const sidebars: SidebarsConfig = {
       ],
     },
     'glossary',
+  ],
+
+  architectureSidebar: [
+    {
+      type: 'category',
+      label: 'Architecture',
+      link: {type: 'doc', id: 'architecture/index'},
+      items: [
+        'architecture/diagram-notation',
+        {
+          type: 'category',
+          label: 'C4 model',
+          items: [
+            'architecture/system-context',
+            'architecture/containers',
+            'architecture/components',
+          ],
+        },
+        'architecture/domain-model',
+        'architecture/data-models',
+        'architecture/runtime-flows',
+      ],
+    },
   ],
 
   contextsSidebar: [

@@ -77,7 +77,7 @@ under `data`:
 
 ### What ships today: the legacy flat envelope
 
-:::caution Two envelopes, honestly documented
+:::caution[Two envelopes, honestly documented]
 `internal/adapters/outbound/kafka/publisher.go` currently emits the
 **legacy flat warehouse envelope** below, not the CloudEvents attributes
 above. The `data` payloads for `StockReserved` and `ReservationRevoked`
@@ -167,7 +167,7 @@ sequenceDiagram
 
     Note over C,I: the physical pick fails
     C->>I: DELETE /reservations/{id}
-    I->>I: Revoke(); release quantity back to each StockUnit
+    I->>I: Revoke() — release quantity back to each StockUnit
     I->>K: ReservationRevoked {sku, quantity, demand_ref}
     K->>W: consume
     W->>W: UsableInventoryObserved[sku] += quantity

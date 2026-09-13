@@ -43,6 +43,16 @@ docs site (its ADRs, its detailed tactical design, its running-locally guide)
   context's own docs already state, following the
   [ddd-crew](https://github.com/ddd-crew) collection of open strategic-design
   templates. See [Strategic Design](/strategic-design) for the method.
+- **Architecture section** — the C4 diagrams, class diagrams and
+  entity-relationship diagrams are authored here, but every element is read
+  from the real source on `origin/develop`: the ER diagrams from each
+  context's `migrations/*.up.sql`, the class diagrams from
+  `internal/domain/**`, and the container topology from each repo's `cmd/`
+  binaries and Helm chart. Every Mermaid diagram on this site is validated by
+  `npm run validate:mermaid`, which parses and renders each one in a real
+  browser — client-side-rendered diagram types are not checked by
+  `docusaurus build`, so a syntax error would otherwise reach the published
+  site as an error box.
 - **ADRs** — linked out to each context's own repository, never copied, so
   they never drift from the decision record of record.
 
@@ -60,6 +70,7 @@ artifacts here.
 | Section | What it covers |
 | --- | --- |
 | [Strategic Design](/strategic-design) | Fleet-wide: domain vision, core domain chart, subdomain classification, context map, domain message flows, ubiquitous language |
+| [Architecture](/architecture) | Structural views: C4 levels 1–3, the domain model (class diagrams), the persistence model (ER diagrams), and runtime sequence flows |
 | [Bounded Contexts](/contexts) | Per-context: business context, ubiquitous language, Bounded Context Canvas, Aggregate Design Canvas, domain events, async API narrative |
 | [API Reference](/api-reference) | Per-context generated REST (OpenAPI) and async (AsyncAPI) documentation |
 | [ADRs](/adr) | Index of Architecture Decision Records, linking to each context's own repository |
