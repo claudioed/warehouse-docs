@@ -93,7 +93,7 @@ C4Container
         Container(rep, "cmd/labor-reports", "Go", "Analytics READER. Read-only pool; serves GET /reports/**.")
 
         ContainerDb(oltpdb, "OLTP database", "Postgres", "Aggregates + outbox_events + processed_events")
-        ContainerDb(anadb, "Analytical database", "Postgres", "Denormalised report projections. Separate instance — analytics never contends with OLTP.")
+        ContainerDb(anadb, "Analytical database", "Postgres", "Denormalised report projections. Separate database and role from the OLTP one.")
     }
 
     System_Ext(kafka, "Kafka", "One broker, platform-wide")
@@ -117,7 +117,7 @@ specific guarantees:
 
 | Process | Database access | Guarantee it buys |
 | --- | --- | --- |
-| OLTP binary | Read-write on the OLTP DB | Operational traffic is never slowed by a report query. |
+| OLTP binary | Read-write on the OLTP DB | Report queries run against a different database and role, so they never lock or block operational tables. |
 | Projector | Read-write on the analytical DB | Exactly one writer, so the projection can never be corrupted by two racing writers. |
 | Reports binary | **Read-only role** on the analytical DB | "Reports can never corrupt the store" is enforced by the database, not by convention. |
 
@@ -145,6 +145,47 @@ binary, **no database at all**, and holds no persisted state — restart it and
 it has forgotten nothing, because every fact it reasons over is re-derived from
 upstream MCP and REST reads at request time. It is a Customer of the other
 eight contexts' Open Host Services, not a bounded context with its own model.
+It is also the only context whose MCP server shares a process and port with its
+main binary, at `/mcp`, rather than running as a separate `cmd/mcp`.
+
+### The port convention
+
+Uniform across all eight backend contexts:
+
+| Workload | Listen address | Env var | Kubernetes Service |
+| --- | --- | --- | --- |
+| OLTP | `:8080` | `HTTP_ADDR` | `:80` → 8080 |
+| MCP | `:8090` | `MCP_ADDR` | `:8090` → 8090 |
+| Projector | `:8091` | `ADMIN_ADDR` | **none rendered** — admin/health only |
+| Reports | `:8092` | `HTTP_ADDR` | `:80` → 8092 |
+| Frontend (nginx) | `:8080` | — | `:80` → 8080 |
+
+`warehouse-ops-agent` is the exception: `AGENT_ADDR=:8095`, serving both its
+REST surface and its own MCP server from that one port.
+
+That totals **43 product workloads** — eight contexts × five workloads, plus
+`warehouse-ops-agent`, `warehouse-console` and the web gateway — before the
+platform layer (Kong, Postgres, Kafka, Istio, ArgoCD, observability).
+
+### Where the databases actually live
+
+The logical separation above is real, but it is worth being precise about the
+physical deployment rather than implying more isolation than exists:
+**one Postgres release** (`postgres`, in the `warehouse-data` namespace) hosts
+all sixteen databases — eight OLTP and eight analytical — each with its own
+generated role. The isolation between OLTP and analytics is a database-and-role
+boundary, not a separate server, and the read-only role on the analytical side
+is what makes the reports guarantee enforceable.
+
+:::caution[A known chart defect worth knowing before you trust this diagram]
+
+Every chart's `selectorLabels` helper emits only `app.kubernetes.io/name` and
+`app.kubernetes.io/instance`, which are **identical** on the OLTP, MCP,
+projector and reports pods. The OLTP Service therefore genuinely selects all
+four. This diagram shows the *intended* 1:1 Service→Deployment mapping; the
+running cluster does not currently enforce it.
+
+:::
 
 ## Kafka: one broker, and what actually flows over it
 

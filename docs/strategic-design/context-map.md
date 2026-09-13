@@ -230,8 +230,11 @@ at least once:
 This page previously stated "no outbox" as a uniform fleet-wide gap. That
 is now out of date — the outbox pattern (commit the event's wire form to
 an outbox table in the SAME transaction as the aggregate change, with an
-in-process relay draining it to Kafka) has rolled out to **seven of the
-eight** backend contexts with a Kafka publisher, each with its own ADR:
+in-process relay draining it to Kafka) has rolled out to **five of the
+eight** backend contexts with a Kafka publisher, each with its own ADR.
+The remaining three have each recorded the gap explicitly rather than
+leaving it undocumented — verified against the real `migrations/` on
+`origin/develop`, where exactly those five carry an outbox migration:
 
 | Context | ADR |
 | --- | --- |

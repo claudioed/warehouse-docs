@@ -116,7 +116,10 @@ development mode works.
 ## The transactional outbox, in component terms
 
 The most consequential outbound adapter is the outbox, present in
-`outbound/postgres` in seven of the eight contexts with a Kafka publisher:
+`outbound/postgres` in five of the eight contexts with a Kafka publisher
+(`wes-work-planning`, `fulfillment-execution`, `workforce-management`,
+`process-path-management`, `labor-performance` — the five that carry an
+outbox migration on `origin/develop`):
 
 ```mermaid
 sequenceDiagram
