@@ -3,6 +3,8 @@ name: Docs
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
@@ -15,27 +17,54 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  # ============================================================
+  # CLASSIFICATION: STATIC VALIDATION (build-only, every PR)
+  # This repo builds and deploys straight off `main` on every push (no
+  # develop/main split, unlike the fleet's GitFlow service repos) -- see
+  # AGENTS.md. Before this job existed, a broken build only surfaced
+  # AFTER merging to main (the `build` job below, which runs on push to
+  # main and then deploys), i.e. a broken site could go live with nothing
+  # blocking the PR that caused it. This job runs the exact same build
+  # (minus the Pages upload/deploy) on every PR targeting main so a
+  # broken build is caught BEFORE merge, not after.
+  # ============================================================
+  build-check:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "20"
           cache: npm
       - run: npm ci
       - run: npm --prefix tools/asyncapi-gen ci --no-audit --no-fund
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v5
+
+  build:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix tools/asyncapi-gen ci --no-audit --no-fund
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: build
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/deploy-pages@v5
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
         id: deployment
